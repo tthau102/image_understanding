@@ -142,6 +142,8 @@ def query_knowledge_base(prompt_content, kb_id, model_id, temperature=0.0, top_p
         session = boto3.Session()
         bedrock_agent_runtime = session.client(service_name='bedrock-agent-runtime')
         region = session.region_name
+        account_id = session.client('sts').get_caller_identity().get('Account')
+
         
         # Chuyển đổi model_id thành ARN
         if not model_id.startswith('arn:'):
