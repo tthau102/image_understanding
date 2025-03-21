@@ -141,18 +141,15 @@ def get_kb_response(prompt_content, kb_id, model_id="anthropic.claude-3-5-sonnet
         logger.error(f"Error processing KB request: {str(e)}")
         raise
 
-def get_kb_response_with_image(prompt_content, kb_id, image_bytes, model_id="anthropic.claude-3-5-sonnet-20240620-v1:0", 
-                             temperature=0.0, top_p=0.9, max_tokens=2000, retrieval_config=None):
-    """
-    Process image and text input using Bedrock Knowledge Base.
-    Note: Since Knowledge Base does not directly support image input,
-    we first analyze the image with the model, then use that analysis to query the KB.
-    """
+def get_kb_response_with_image(prompt_content, kb_id, image_bytes, model_id, temperature=0.0, top_p=0.9, max_tokens=2000, retrieval_config=None):
+    """Process image và text input với Bedrock Knowledge Base."""
     try:
         session = boto3.Session()
+        # Đổi client từ bedrock thành bedrock-agent-runtime
         bedrock = session.client(service_name='bedrock-runtime')
+        bedrock_agent_runtime = session.client(service_name='bedrock-agent-runtime')
         
-        # Step 1: Analyze image first
+        # Step 1: Phân tích hình ảnh bằng model thông thường (vẫn dùng bedrock-runtime)
         image_format = detect_image_format(image_bytes)
         
         image_message = {
@@ -182,7 +179,7 @@ def get_kb_response_with_image(prompt_content, kb_id, image_bytes, model_id="ant
         
         image_description = image_analysis_response['output']['message']['content'][0]['text']
         
-        # Step 2: Create combined query with image description and original prompt
+        # Step 2: Tạo prompt kết hợp
         combined_prompt = f"""
 Image description: {image_description}
 
@@ -191,7 +188,7 @@ User query: {prompt_content}
 Please answer the user query using the image description and any relevant information from the knowledge base.
         """.strip()
         
-        # Step 3: Query Knowledge Base with combined prompt
+        # Step 3: Query Knowledge Base với prompt kết hợp (dùng bedrock-agent-runtime)
         input_data = {
             "text": combined_prompt
         }
@@ -215,7 +212,8 @@ Please answer the user query using the image description and any relevant inform
                 "vectorSearchConfiguration": retrieval_config
             }
         
-        kb_response = bedrock.retrieve_and_generate(
+        # Gọi API đúng của bedrock-agent-runtime
+        kb_response = bedrock_agent_runtime.retrieve_and_generate(
             input=input_data,
             retrieveAndGenerateConfiguration={
                 "type": "KNOWLEDGE_BASE",
@@ -227,3 +225,7 @@ Please answer the user query using the image description and any relevant inform
     except Exception as e:
         logger.error(f"Error processing KB request with image: {str(e)}")
         raise
+
+
+
+
