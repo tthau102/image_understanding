@@ -1,9 +1,9 @@
 #!/bin/bash
 
-branch = "dev"
+branch="dev"
 
 if [ -n "$1" ]; then
-    branch = $1
+    branch="$1"
 fi
 
 git add .
