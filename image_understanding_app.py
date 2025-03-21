@@ -22,6 +22,12 @@ model_options_dict = {
     "Amazon Nova Pro": "amazon.nova-pro-v1:0"
 }
 
+# Dictionary chứa các knowledge base options
+kb_options_dict = {
+    "None": None,
+    "tthau-test-kb-01": "HYDL8ADSDN"
+}
+
 # Cột 1: Cấu hình model và parameters
 with col1:
     st.subheader("Model Configuration")
@@ -33,6 +39,23 @@ with col1:
         index=0,
     )
     selected_model_id = model_options_dict[model_selection]
+
+    # Knowledge Base configuration
+    st.subheader("Knowledge Base")
+    enable_kb = st.checkbox("Enable Knowledge Base", value=False)
+    
+    kb_selection = st.selectbox(
+        "Knowledge Base:",
+        options=list(kb_options_dict.keys()),
+        index=0,
+        disabled=not enable_kb
+    )
+    selected_kb_id = kb_options_dict[kb_selection]
+    
+    # KB Retrieval settings nếu enable KB
+    if enable_kb and selected_kb_id:
+        num_results = st.slider("Number of Results", min_value=1, max_value=10, value=5, step=1,
+                         help="Maximum number of retrieval results")
 
     # Inference parameters
     st.subheader("Inference Parameters")
@@ -69,7 +92,7 @@ with col3:
     
     go_button = st.button("Go", type="primary")
 
-# Cột 3: Hiển thị kết quả
+# Cột 4: Hiển thị kết quả
 with col4:
     st.subheader("Result")
 
@@ -82,59 +105,106 @@ with col4:
                     # Xác định nếu có hình ảnh hay không
                     image_bytes = uploaded_file.getvalue() if uploaded_file else None
                     
-                    # Lựa chọn phương thức xử lý phù hợp dựa trên input
-                    if image_bytes:
-                        logger.info(f"Processing image request with model: {selected_model_id}")
-                        response = glib.get_response_from_model(
-                            prompt_content=prompt_text, 
-                            image_bytes=image_bytes,
-                            model_id=selected_model_id,
-                            temperature=temperature,
-                            top_p=top_p,
-                            max_tokens=max_tokens
-                        )
-                    else:
-                        logger.info(f"Processing text request with model: {selected_model_id}")
-                        response = glib.get_text_response(
-                            prompt_content=prompt_text,
-                            model_id=selected_model_id,
-                            temperature=temperature,
-                            top_p=top_p,
-                            max_tokens=max_tokens
-                        )
-                    
-                    # Hàm phát hiện và phân tích JSON
-                    def is_json(text):
-                        try:
-                            # Regex để tìm JSON pattern
-                            json_pattern = r'(\{[^{}]*(\{[^{}]*\}[^{}]*)*\})'
-                            json_matches = re.findall(json_pattern, text)
-                            
-                            if json_matches:
-                                potential_json = json_matches[0][0]
-                                json.loads(potential_json)  # Kiểm tra nếu có thể parse
-                                return potential_json
-                            return None
-                        except (json.JSONDecodeError, IndexError):
-                            return None
-                    
-                    # Xử lý và hiển thị kết quả
-                    json_content = is_json(response)
-                    
-                    if json_content:
-                        # Tách phần văn bản và phần JSON
-                        non_json_part = response.replace(json_content, "")
-                        if non_json_part.strip():
-                            st.write(non_json_part)
+                    # Lựa chọn phương thức xử lý phù hợp dựa trên input và Knowledge Base
+                    if enable_kb and selected_kb_id:
+                        # Sử dụng Knowledge Base API
+                        logger.info(f"Processing with Knowledge Base: {selected_kb_id}")
                         
-                        # Hiển thị JSON dưới dạng có cấu trúc
-                        json_data = json.loads(json_content)
-                        st.json(json_data)
-                    else:
-                        # Hiển thị văn bản thông thường
+                        retrieval_config = {"numberOfResults": num_results} if 'num_results' in locals() else {}
+                        
+                        if image_bytes:
+                            response, citations = glib.get_kb_response_with_image(
+                                prompt_content=prompt_text,
+                                kb_id=selected_kb_id,
+                                image_bytes=image_bytes,
+                                model_id=selected_model_id,
+                                temperature=temperature,
+                                top_p=top_p,
+                                max_tokens=max_tokens,
+                                retrieval_config=retrieval_config
+                            )
+                        else:
+                            response, citations = glib.get_kb_response(
+                                prompt_content=prompt_text,
+                                kb_id=selected_kb_id,
+                                model_id=selected_model_id,
+                                temperature=temperature,
+                                top_p=top_p,
+                                max_tokens=max_tokens,
+                                retrieval_config=retrieval_config
+                            )
+                        
+                        # Hiển thị kết quả
                         st.write(response)
+                        
+                        # Hiển thị citations nếu có
+                        if citations:
+                            st.subheader("Citations")
+                            for i, citation in enumerate(citations):
+                                st.markdown(f"**Source {i+1}:**")
+                                for ref in citation.get('retrievedReferences', []):
+                                    content = ref.get('content', {})
+                                    if 'text' in content:
+                                        st.markdown(f"- {content['text'][:200]}...")
+                    else:
+                        # Sử dụng API nguyên bản không có Knowledge Base
+                        if image_bytes:
+                            logger.info(f"Processing image request with model: {selected_model_id}")
+                            response = glib.get_response_from_model(
+                                prompt_content=prompt_text, 
+                                image_bytes=image_bytes,
+                                model_id=selected_model_id,
+                                temperature=temperature,
+                                top_p=top_p,
+                                max_tokens=max_tokens
+                            )
+                        else:
+                            logger.info(f"Processing text request with model: {selected_model_id}")
+                            response = glib.get_text_response(
+                                prompt_content=prompt_text,
+                                model_id=selected_model_id,
+                                temperature=temperature,
+                                top_p=top_p,
+                                max_tokens=max_tokens
+                            )
+                        
+                        # Hàm phát hiện và phân tích JSON
+                        def is_json(text):
+                            try:
+                                # Regex để tìm JSON pattern
+                                json_pattern = r'(\{[^{}]*(\{[^{}]*\}[^{}]*)*\})'
+                                json_matches = re.findall(json_pattern, text)
+                                
+                                if json_matches:
+                                    potential_json = json_matches[0][0]
+                                    json.loads(potential_json)  # Kiểm tra nếu có thể parse
+                                    return potential_json
+                                return None
+                            except (json.JSONDecodeError, IndexError):
+                                return None
+                        
+                        # Xử lý và hiển thị kết quả
+                        json_content = is_json(response)
+                        
+                        if json_content:
+                            # Tách phần văn bản và phần JSON
+                            non_json_part = response.replace(json_content, "")
+                            if non_json_part.strip():
+                                st.write(non_json_part)
+                            
+                            # Hiển thị JSON dưới dạng có cấu trúc
+                            json_data = json.loads(json_content)
+                            st.json(json_data)
+                        else:
+                            # Hiển thị văn bản thông thường
+                            st.write(response)
                         
                 except Exception as e:
                     logger.error(f"Error during processing: {str(e)}")
                     st.error(f"Đã xảy ra lỗi: {str(e)}")
-                    st.error("Kiểm tra IAM Role có đủ quyền truy cập vào Bedrock Model")
+                    if "AccessDeniedException" in str(e):
+                        st.error("Kiểm tra IAM Role có đủ quyền truy cập vào Bedrock API và Knowledge Base")
+                    elif "ResourceNotFoundException" in str(e):
+                        st.error("Knowledge Base không tồn tại hoặc không khả dụng")
+                    else:
+                        st.error("Kiểm tra IAM Role có đủ quyền truy cập vào Bedrock Model")
