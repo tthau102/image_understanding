@@ -8,6 +8,6 @@ fi
 
 git add .
 git commit -m "Update - $timedate"
-git branch --set-upstream-to=origin/$branch $branch
+git branch --set-upstream-to=origin/$branch dev
 git push
 git branch --unset-upstream
