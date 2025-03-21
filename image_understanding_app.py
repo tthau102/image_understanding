@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 st.set_page_config(layout="wide", page_title="Image Understanding")
 st.title("Image Understanding")
 
-# Chia layout thành 4 cột
+# Chia layout thành 3 cột
 col1, col2, col3, col4 = st.columns(4)
 
 # Dictionary chứa các model options
@@ -25,7 +25,6 @@ model_options_dict = {
 # Dictionary chứa các knowledge base options
 kb_options_dict = {
     "None": None,
-    "tthau-test-kb-01": "HYDL8ADSDN",
     "tthau-test-kb-02": "LWS78SW0OR"
 }
 
@@ -67,7 +66,7 @@ with col1:
     
     temperature = st.slider("Temperature", min_value=0.0, max_value=1.0, value=0.0, step=0.1, 
                            help=help_temperature, format='%.1f')
-    top_p = st.slider("Top P", min_value=0.1, max_value=1.0, value=0.5, step=0.1, 
+    top_p = st.slider("Top P", min_value=0.1, max_value=1.0, value=0.9, step=0.1, 
                      help=help_top_p, format='%.1f')
     max_tokens = st.slider("Max Tokens", min_value=100, max_value=4000, value=2000, step=100, 
                           help=help_max_tokens)
@@ -83,6 +82,7 @@ with col2:
 
 # Cột 3: Nhập prompt
 with col3:
+    
     st.subheader("Prompt")
     prompt_text = st.text_area(
         "Enter your prompt:",
@@ -113,24 +113,10 @@ with col4:
                         retrieval_config = {"numberOfResults": num_results} if 'num_results' in locals() else {}
                         
                         if image_bytes:
-                            # Sử dụng workflow hai bước: phân tích hình ảnh trước, sau đó query KB
-                            image_description = glib.analyze_image(
-                                image_bytes=image_bytes,
-                                model_id=selected_model_id
-                            )
-                            
-                            # Hiển thị mô tả hình ảnh (tùy chọn)
-                            st.subheader("Image Analysis")
-                            with st.expander("View image description"):
-                                st.write(image_description)
-                            
-                            # Kết hợp mô tả hình ảnh và prompt
-                            combined_prompt = f"Image description: {image_description}\n\nUser query: {prompt_text}"
-                            
-                            # Query Knowledge Base với prompt kết hợp
-                            response, citations = glib.query_knowledge_base(
-                                prompt_content=combined_prompt,
+                            response, citations = glib.get_kb_response_with_image(
+                                prompt_content=prompt_text,
                                 kb_id=selected_kb_id,
+                                image_bytes=image_bytes,
                                 model_id=selected_model_id,
                                 temperature=temperature,
                                 top_p=top_p,
@@ -138,8 +124,7 @@ with col4:
                                 retrieval_config=retrieval_config
                             )
                         else:
-                            # Sử dụng Knowledge Base với text-only prompt
-                            response, citations = glib.query_knowledge_base(
+                            response, citations = glib.get_kb_response(
                                 prompt_content=prompt_text,
                                 kb_id=selected_kb_id,
                                 model_id=selected_model_id,
