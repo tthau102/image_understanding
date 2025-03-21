@@ -25,6 +25,7 @@ model_options_dict = {
 # Dictionary chứa các knowledge base options
 kb_options_dict = {
     "None": None,
+    "tthau-test-kb-01": "HYDL8ADSDN",
     "tthau-test-kb-02": "LWS78SW0OR"
 }
 
@@ -66,7 +67,7 @@ with col1:
     
     temperature = st.slider("Temperature", min_value=0.0, max_value=1.0, value=0.0, step=0.1, 
                            help=help_temperature, format='%.1f')
-    top_p = st.slider("Top P", min_value=0.1, max_value=1.0, value=0.9, step=0.1, 
+    top_p = st.slider("Top P", min_value=0.1, max_value=1.0, value=0.5, step=0.1, 
                      help=help_top_p, format='%.1f')
     max_tokens = st.slider("Max Tokens", min_value=100, max_value=4000, value=2000, step=100, 
                           help=help_max_tokens)
