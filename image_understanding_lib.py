@@ -145,9 +145,15 @@ def query_knowledge_base(prompt_content, kb_id, model_id, temperature=0.0, top_p
         
         # Chuyển đổi model_id thành ARN
         if not model_id.startswith('arn:'):
-            model_arn = f"arn:aws:bedrock:{region}::foundation-model/{model_id}"
+            model_arn = f"arn:aws:bedrock:{region}:{account_id}:foundation-model/{model_id}"
         else:
-            model_arn = model_id
+            # Kiểm tra format ARN
+            parts = model_id.split(':')
+            if len(parts) >= 7 and parts[5] == '':
+                # Thêm account ID vào ARN khi thiếu
+                model_arn = f"arn:aws:bedrock:{parts[3]}:{account_id}:foundation-model/{parts[6]}"
+            else:
+                model_arn = model_id
             
         # Định nghĩa input_data (thiếu dòng này)
         input_data = {
@@ -157,7 +163,7 @@ def query_knowledge_base(prompt_content, kb_id, model_id, temperature=0.0, top_p
         # Cấu hình Knowledge Base
         kb_config = {
             "knowledgeBaseId": kb_id,
-            "modelArn": model_arn,
+            "modelArn": model_id,
             "generationConfiguration": {
                 "inferenceConfig": {
                     "textInferenceConfig": {
