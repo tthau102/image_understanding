@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 st.set_page_config(layout="wide", page_title="Image Understanding")
 st.title("Image Understanding")
 
-# Chia layout thành 4 cột
+# Chia layout thành 3 cột
 col1, col2, col3, col4 = st.columns(4)
 
 # Dictionary chứa các model options
@@ -22,15 +22,9 @@ model_options_dict = {
     "Amazon Nova Pro": "amazon.nova-pro-v1:0"
 }
 
-# Dictionary chứa các knowledge base options
-kb_options_dict = {
-    "None": None,
-    "tthau-test-kb-01": "HYDL8ADSDN",  # Sử dụng Knowledge Base ID thực tế
-}
-
 # Cột 1: Cấu hình model và parameters
 with col1:
-    st.subheader("Model & Knowledge Base")
+    st.subheader("Model Configuration")
     
     # Chọn model
     model_selection = st.selectbox(
@@ -39,14 +33,6 @@ with col1:
         index=0,
     )
     selected_model_id = model_options_dict[model_selection]
-
-    # Chọn knowledge base
-    kb_selection = st.selectbox(
-        "Knowledge Base:",
-        options=list(kb_options_dict.keys()),
-        index=0,
-    )
-    selected_kb = kb_options_dict[kb_selection]
 
     # Inference parameters
     st.subheader("Inference Parameters")
@@ -73,8 +59,8 @@ with col2:
 
 # Cột 3: Nhập prompt
 with col3:
-    st.subheader("Prompt")
     
+    st.subheader("Prompt")
     prompt_text = st.text_area(
         "Enter your prompt:",
         height=150,
@@ -83,7 +69,7 @@ with col3:
     
     go_button = st.button("Go", type="primary")
 
-# Cột 4: Hiển thị kết quả
+# Cột 3: Hiển thị kết quả
 with col4:
     st.subheader("Result")
 
@@ -97,50 +83,25 @@ with col4:
                     image_bytes = uploaded_file.getvalue() if uploaded_file else None
                     
                     # Lựa chọn phương thức xử lý phù hợp dựa trên input
-                    if selected_kb:
-                        # Xử lý với RAG
-                        if image_bytes:
-                            logger.info(f"Processing image with RAG using KB: {selected_kb}")
-                            response = glib.get_response_with_rag(
-                                prompt_content=prompt_text, 
-                                image_bytes=image_bytes,
-                                model_id=selected_model_id,
-                                collection_name=selected_kb,
-                                temperature=temperature,
-                                top_p=top_p,
-                                max_tokens=max_tokens
-                            )
-                        else:
-                            logger.info(f"Processing text with RAG using KB: {selected_kb}")
-                            response = glib.get_text_response_with_rag(
-                                prompt_content=prompt_text,
-                                model_id=selected_model_id,
-                                collection_name=selected_kb,
-                                temperature=temperature,
-                                top_p=top_p,
-                                max_tokens=max_tokens
-                            )
+                    if image_bytes:
+                        logger.info(f"Processing image request with model: {selected_model_id}")
+                        response = glib.get_response_from_model(
+                            prompt_content=prompt_text, 
+                            image_bytes=image_bytes,
+                            model_id=selected_model_id,
+                            temperature=temperature,
+                            top_p=top_p,
+                            max_tokens=max_tokens
+                        )
                     else:
-                        # Xử lý không có RAG
-                        if image_bytes:
-                            logger.info(f"Processing image without RAG")
-                            response = glib.get_response_from_model(
-                                prompt_content=prompt_text, 
-                                image_bytes=image_bytes,
-                                model_id=selected_model_id,
-                                temperature=temperature,
-                                top_p=top_p,
-                                max_tokens=max_tokens
-                            )
-                        else:
-                            logger.info(f"Processing text without RAG")
-                            response = glib.get_text_response(
-                                prompt_content=prompt_text,
-                                model_id=selected_model_id,
-                                temperature=temperature,
-                                top_p=top_p,
-                                max_tokens=max_tokens
-                            )
+                        logger.info(f"Processing text request with model: {selected_model_id}")
+                        response = glib.get_text_response(
+                            prompt_content=prompt_text,
+                            model_id=selected_model_id,
+                            temperature=temperature,
+                            top_p=top_p,
+                            max_tokens=max_tokens
+                        )
                     
                     # Hàm phát hiện và phân tích JSON
                     def is_json(text):
@@ -176,4 +137,4 @@ with col4:
                 except Exception as e:
                     logger.error(f"Error during processing: {str(e)}")
                     st.error(f"Đã xảy ra lỗi: {str(e)}")
-                    st.error("Kiểm tra IAM Role có đủ quyền truy cập vào Bedrock Knowledge Base và Embedding Model")
+                    st.error("Kiểm tra IAM Role có đủ quyền truy cập vào Bedrock Model")
