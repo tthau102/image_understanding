@@ -2,6 +2,7 @@ import boto3
 from io import BytesIO
 import imghdr
 import logging
+import json
 
 # Thiết lập logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -142,14 +143,22 @@ def get_kb_response(prompt_content, kb_id, model_id="anthropic.claude-3-5-sonnet
         raise
 
 def get_kb_response_with_image(prompt_content, kb_id, image_bytes, model_id, temperature=0.0, top_p=0.9, max_tokens=2000, retrieval_config=None):
-    """Process image và text input với Bedrock Knowledge Base."""
     try:
         session = boto3.Session()
-        # Đổi client từ bedrock thành bedrock-agent-runtime
         bedrock = session.client(service_name='bedrock-runtime')
         bedrock_agent_runtime = session.client(service_name='bedrock-agent-runtime')
         
-        # Step 1: Phân tích hình ảnh bằng model thông thường (vẫn dùng bedrock-runtime)
+        # Chuyển đổi model_id thành modelArn nếu cần
+        region = session.region_name
+        account_id = boto3.client('sts').get_caller_identity().get('Account')
+        
+        # Kiểm tra nếu model_id không phải là ARN thì chuyển đổi
+        if not model_id.startswith('arn:'):
+            model_arn = f"arn:aws:bedrock:{region}:{account_id}:model/{model_id}"
+        else:
+            model_arn = model_id
+        
+        # Step 1: Phân tích hình ảnh (vẫn dùng model_id gốc)
         image_format = detect_image_format(image_bytes)
         
         image_message = {
@@ -168,7 +177,7 @@ def get_kb_response_with_image(prompt_content, kb_id, image_bytes, model_id, tem
         }
         
         image_analysis_response = bedrock.converse(
-            modelId=model_id,
+            modelId=model_id,  # Giữ nguyên model_id cho API này
             messages=[image_message],
             inferenceConfig={
                 "maxTokens": 1000,
@@ -180,30 +189,18 @@ def get_kb_response_with_image(prompt_content, kb_id, image_bytes, model_id, tem
         image_description = image_analysis_response['output']['message']['content'][0]['text']
         
         # Step 2: Tạo prompt kết hợp
-        combined_prompt = f"""
-Image description: {image_description}
-
-User query: {prompt_content}
-
-Please answer the user query using the image description and any relevant information from the knowledge base.
-        """.strip()
+        combined_prompt = f"Image description: {image_description}\n\nUser query: {prompt_content}"
         
-        # Step 3: Query Knowledge Base với prompt kết hợp (dùng bedrock-agent-runtime)
+        # Step 3: Query Knowledge Base với prompt kết hợp
         input_data = {
             "text": combined_prompt
         }
         
         kb_config = {
             "knowledgeBaseId": kb_id,
-            "modelArn": model_id,
+            "modelArn": model_id,  # Sử dụng trực tiếp model_id
             "generationConfiguration": {
-                "inferenceConfig": {
-                    "textInferenceConfig": {
-                        "temperature": temperature,
-                        "topP": top_p,
-                        "maxTokens": max_tokens
-                    }
-                }
+                "inferenceConfig": {...}
             }
         }
         
@@ -212,7 +209,9 @@ Please answer the user query using the image description and any relevant inform
                 "vectorSearchConfiguration": retrieval_config
             }
         
-        # Gọi API đúng của bedrock-agent-runtime
+        # Log để debug
+        logger.info(f"KB Config: {json.dumps(kb_config, default=str)}")
+        
         kb_response = bedrock_agent_runtime.retrieve_and_generate(
             input=input_data,
             retrieveAndGenerateConfiguration={
@@ -225,7 +224,5 @@ Please answer the user query using the image description and any relevant inform
     except Exception as e:
         logger.error(f"Error processing KB request with image: {str(e)}")
         raise
-
-
 
 
