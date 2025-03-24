@@ -18,15 +18,15 @@ col1, col2, col3, col4 = st.columns(4)
 # Dictionary chứa các model options
 model_options_dict = {
     "Claude 3.5 Sonnet": "anthropic.claude-3-5-sonnet-20240620-v1:0",
-    "Amazon Nova Lite": "amazon.nova-lite-v1:0", 
-    "Amazon Nova Pro": "amazon.nova-pro-v1:0"
+    "Claude 3.7 Sonnet": "anthropic.claude-3-7-sonnet-20250219-v1:0",
+    "Amazon Nova Pro": "amazon.nova-pro-v1:0",
+    "Amazon Nova Lite": "amazon.nova-lite-v1:0"
 }
 
 # Dictionary chứa các knowledge base options
 kb_options_dict = {
     "None": None,
-    "tthau-test-kb-01": "HYDL8ADSDN",
-    "tthau-test-kb-02": "LWS78SW0OR"
+    "tthau-test-kb-03": "AD4QD4W8L2"
 }
 
 # Cột 1: Cấu hình model và parameters
@@ -65,7 +65,7 @@ with col1:
     help_top_p = "Controls token choices. Lower values focus on most likely tokens."
     help_max_tokens = "Maximum number of tokens to generate in the response."
     
-    temperature = st.slider("Temperature", min_value=0.0, max_value=1.0, value=0.0, step=0.1, 
+    temperature = st.slider("Temperature", min_value=0.0, max_value=1.0, value=0.5, step=0.1, 
                            help=help_temperature, format='%.1f')
     top_p = st.slider("Top P", min_value=0.1, max_value=1.0, value=0.5, step=0.1, 
                      help=help_top_p, format='%.1f')
