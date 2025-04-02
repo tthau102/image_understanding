@@ -226,5 +226,38 @@ Please answer the user query using the image description and any relevant inform
         logger.error(f"Error processing KB request with image: {str(e)}")
         raise
 
-
+def get_text_response_with_system(prompt_content, system_prompt, model_id="anthropic.claude-3-5-sonnet-20240620-v1:0", 
+                                temperature=0.0, top_p=0.9, max_tokens=2000):
+    """Process text input with system prompt."""
+    try:
+        session = boto3.Session()
+        bedrock = session.client(service_name='bedrock-runtime')
+        
+        # Chuẩn bị message list với system prompt
+        messages = [
+            {
+                "role": "system",
+                "content": [{"text": system_prompt}]
+            },
+            {
+                "role": "user",
+                "content": [{"text": prompt_content}]
+            }
+        ]
+        
+        # Call model
+        response = bedrock.converse(
+            modelId=model_id,
+            messages=messages,
+            inferenceConfig={
+                "maxTokens": max_tokens,
+                "temperature": temperature,
+                "topP": top_p
+            },
+        )
+        
+        return response['output']['message']['content'][0]['text']
+    except Exception as e:
+        logger.error(f"Error processing text with system prompt: {str(e)}")
+        raise
 
