@@ -18,8 +18,8 @@ col1, col2, col3, col4 = st.columns([2,2.5,3.5,3.5])
 # Dictionary chứa các model options
 model_options_dict = {
     "Amazon Nova Pro": "apac.amazon.nova-pro-v1:0",
-    "Claude 3.5 Sonnet": "anthropic.claude-3-5-sonnet-20240620-v1:0",
-    "Amazon Nova Lite": "amazon.nova-lite-v1:0"
+    "Amazon Nova Lite": "apac.amazon.nova-lite-v1:0",
+    "Claude 3.5 Sonnet": "anthropic.claude-3-5-sonnet-20240620-v1:0"
 }
 
 # Dictionary chứa các knowledge base options
@@ -47,9 +47,9 @@ with col1:
     help_top_p = "Controls token choices. Lower values focus on most likely tokens."
     help_max_tokens = "Maximum number of tokens to generate in the response."
     
-    temperature = st.slider("Temperature", min_value=0.0, max_value=1.0, value=0.5, step=0.1, 
+    temperature = st.slider("Temperature", min_value=0.0, max_value=1.0, value=0.0, step=0.1, 
                            help=help_temperature, format='%.1f')
-    top_p = st.slider("Top P", min_value=0.1, max_value=1.0, value=0.5, step=0.1, 
+    top_p = st.slider("Top P", min_value=0.1, max_value=1.0, value=1.0, step=0.1, 
                      help=help_top_p, format='%.1f')
     max_tokens = st.slider("Max Tokens", min_value=100, max_value=4000, value=2000, step=100, 
                           help=help_max_tokens)
@@ -83,23 +83,24 @@ with col2:
 # Cột 3: Nhập prompt
 with col3:
     st.subheader("Prompt")
-
-    # Thêm expander cho system prompt
-    with st.expander("System Prompt (Optional)", expanded=False):
-        system_prompt = st.text_area(
-            "Enter system instructions:",
-            height=100,
-            help="Instructions that guide the model's behavior but aren't shown as part of the main prompt.",
-            placeholder="You are an expert at analyzing images. Be concise and detailed in your responses."
-        )
-
-    prompt_text = st.text_area(
-        "Enter your prompt:",
-        height=150,
-        help="Enter your question or prompt.",
-    )
     
-    go_button = st.button("Go", type="primary")
+    with st.form(key="prompt_form"):
+        with st.expander("System Prompt (Optional)", expanded=False):
+            system_prompt = st.text_area(
+                "Enter system instructions:",
+                height=100,
+                help="Instructions that guide the model's behavior but aren't shown as part of the main prompt.",
+                placeholder="You are an expert at analyzing images. Be concise and detailed in your responses."
+            )
+        
+        prompt_text = st.text_area(
+            "Enter your User prompt:",
+            height=400,
+            help="Enter your question or prompt.",
+        )
+        
+        go_button = st.form_submit_button("Go", type="primary")
+
 
 # Cột 4: Hiển thị kết quả
 with col4:
@@ -182,6 +183,8 @@ with col4:
                                 )
                     
                     # Hiển thị kết quả (logic hiện tại)
+                    st.write(response)
+
                         
                 except Exception as e:
                     logger.error(f"Error during processing: {str(e)}")
