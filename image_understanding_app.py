@@ -17,9 +17,8 @@ col1, col2, col3, col4 = st.columns(4)
 
 # Dictionary chứa các model options
 model_options_dict = {
+    "Amazon Nova Pro": "apac.amazon.nova-pro-v1:0",
     "Claude 3.5 Sonnet": "anthropic.claude-3-5-sonnet-20240620-v1:0",
-    "Claude 3.7 Sonnet": "anthropic.claude-3-7-sonnet-20250219-v1:0",
-    "Amazon Nova Pro": "amazon.nova-pro-v1:0",
     "Amazon Nova Lite": "amazon.nova-lite-v1:0"
 }
 
