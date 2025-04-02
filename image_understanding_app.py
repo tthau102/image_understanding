@@ -25,7 +25,7 @@ model_options_dict = {
 # Dictionary chứa các knowledge base options
 kb_options_dict = {
     "None": None,
-    "tthau-test-kb-03": "AD4QD4W8L2"
+    # "tthau-test-kb-03": "AD4QD4W8L2"
 }
 
 # Cột 1: Cấu hình model và parameters
