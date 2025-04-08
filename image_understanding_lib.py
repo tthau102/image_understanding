@@ -2,6 +2,8 @@ import boto3
 from io import BytesIO
 import imghdr
 import logging
+import json
+import base64
 
 # Thiết lập logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -64,6 +66,89 @@ def get_response_from_model(prompt_content, image_bytes, model_id="anthropic.cla
         logger.error(f"Error processing image with model: {str(e)}")
         raise
 
+def get_response_from_model_with_system(prompt_content, image_bytes, system_prompt, 
+                                       model_id="anthropic.claude-3-5-sonnet-20240620-v1:0", 
+                                       temperature=0.0, top_p=0.9, max_tokens=2000):
+    """Process image and text input with system prompt using Bedrock model."""
+    try:
+        session = boto3.Session()
+        bedrock = session.client(service_name='bedrock-runtime')
+        
+        # Detect image format
+        image_format = detect_image_format(image_bytes)
+        
+        # Kiểm tra nếu là model Claude của Anthropic
+        is_anthropic_model = "anthropic" in model_id.lower()
+        
+        if is_anthropic_model:
+            # Anthropic models hỗ trợ system prompt trong parameter riêng với invoke_model API
+            payload = {
+                "anthropic_version": "bedrock-2023-05-31",
+                "max_tokens": max_tokens,
+                "temperature": temperature,
+                "system": system_prompt,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": "Image 1:"},
+                            {
+                                "type": "image",
+                                "source": {
+                                    "type": "base64",
+                                    "media_type": f"image/{image_format}",
+                                    "data": base64.b64encode(image_bytes).decode('utf-8')
+                                }
+                            },
+                            {"type": "text", "text": prompt_content}
+                        ]
+                    }
+                ]
+            }
+            
+            response = bedrock.invoke_model(
+                modelId=model_id,
+                body=json.dumps(payload)
+            )
+            response_body = json.loads(response['body'].read().decode('utf-8'))
+            return response_body['content'][0]['text']
+        else:
+            # Đối với Amazon models, kết hợp system prompt vào user prompt
+            combined_prompt = f"System instructions: {system_prompt}\n\nUser: {prompt_content}"
+            
+            # Prepare message with image
+            image_message = {
+                "role": "user",
+                "content": [
+                    {"text": "Image 1:"},
+                    {
+                        "image": {
+                            "format": image_format,
+                            "source": {
+                                "bytes": image_bytes
+                            }
+                        }
+                    },
+                    {"text": combined_prompt}
+                ],
+            }
+            
+            # Call model
+            response = bedrock.converse(
+                modelId=model_id,
+                messages=[image_message],
+                inferenceConfig={
+                    "maxTokens": max_tokens,
+                    "temperature": temperature,
+                    "topP": top_p
+                },
+            )
+            
+            return response['output']['message']['content'][0]['text']
+    except Exception as e:
+        logger.error(f"Error processing image with system prompt: {str(e)}")
+        raise
+
 def get_text_response(prompt_content, model_id="anthropic.claude-3-5-sonnet-20240620-v1:0", 
                      temperature=0.0, top_p=0.9, max_tokens=2000):
     """Process text-only input using Bedrock model."""
@@ -93,6 +178,66 @@ def get_text_response(prompt_content, model_id="anthropic.claude-3-5-sonnet-2024
         return response['output']['message']['content'][0]['text']
     except Exception as e:
         logger.error(f"Error processing text with model: {str(e)}")
+        raise
+
+def get_text_response_with_system(prompt_content, system_prompt, model_id="anthropic.claude-3-5-sonnet-20240620-v1:0", 
+                                temperature=0.0, top_p=0.9, max_tokens=2000):
+    """Process text input with system prompt."""
+    try:
+        session = boto3.Session()
+        bedrock = session.client(service_name='bedrock-runtime')
+        
+        # Kiểm tra nếu là model Claude của Anthropic
+        is_anthropic_model = "anthropic" in model_id.lower()
+        
+        if is_anthropic_model:
+            # Anthropic models hỗ trợ system prompt trong parameter riêng
+            # Sử dụng invoke_model API thay vì converse cho Anthropic models
+            payload = {
+                "anthropic_version": "bedrock-2023-05-31",
+                "max_tokens": max_tokens,
+                "temperature": temperature,
+                "system": system_prompt,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": prompt_content
+                    }
+                ]
+            }
+            
+            response = bedrock.invoke_model(
+                modelId=model_id,
+                body=json.dumps(payload)
+            )
+            response_body = json.loads(response['body'].read().decode('utf-8'))
+            return response_body['content'][0]['text']
+        else:
+            # Đối với Amazon models (Nova), kết hợp system prompt vào user prompt
+            combined_prompt = f"System instructions: {system_prompt}\n\nUser: {prompt_content}"
+            
+            # Chuẩn bị message list với adjusted prompt
+            messages = [
+                {
+                    "role": "user",
+                    "content": [{"text": combined_prompt}]
+                }
+            ]
+            
+            # Call model
+            response = bedrock.converse(
+                modelId=model_id,
+                messages=messages,
+                inferenceConfig={
+                    "maxTokens": max_tokens,
+                    "temperature": temperature,
+                    "topP": top_p
+                },
+            )
+            
+            return response['output']['message']['content'][0]['text']
+    except Exception as e:
+        logger.error(f"Error processing text with system prompt: {str(e)}")
         raise
 
 def get_kb_response(prompt_content, kb_id, model_id="anthropic.claude-3-5-sonnet-20240620-v1:0", 
@@ -225,39 +370,3 @@ Please answer the user query using the image description and any relevant inform
     except Exception as e:
         logger.error(f"Error processing KB request with image: {str(e)}")
         raise
-
-def get_text_response_with_system(prompt_content, system_prompt, model_id="anthropic.claude-3-5-sonnet-20240620-v1:0", 
-                                temperature=0.0, top_p=0.9, max_tokens=2000):
-    """Process text input with system prompt."""
-    try:
-        session = boto3.Session()
-        bedrock = session.client(service_name='bedrock-runtime')
-        
-        # Chuẩn bị message list với system prompt
-        messages = [
-            {
-                "role": "system",
-                "content": [{"text": system_prompt}]
-            },
-            {
-                "role": "user",
-                "content": [{"text": prompt_content}]
-            }
-        ]
-        
-        # Call model
-        response = bedrock.converse(
-            modelId=model_id,
-            messages=messages,
-            inferenceConfig={
-                "maxTokens": max_tokens,
-                "temperature": temperature,
-                "topP": top_p
-            },
-        )
-        
-        return response['output']['message']['content'][0]['text']
-    except Exception as e:
-        logger.error(f"Error processing text with system prompt: {str(e)}")
-        raise
-

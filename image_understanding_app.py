@@ -25,7 +25,7 @@ model_options_dict = {
 # Dictionary chứa các knowledge base options
 kb_options_dict = {
     "None": None,
-    # "tthau-test-kb-03": "AD4QD4W8L2"
+    "tthau-test-kb-002": "PIGIMPRA55"
 }
 
 # Cột 1: Cấu hình model và parameters
@@ -120,8 +120,7 @@ with col4:
                     
                     # Lựa chọn phương thức xử lý phù hợp dựa trên input và Knowledge Base
                     if enable_kb and selected_kb_id:
-                        # Logic xử lý Knowledge Base (giữ nguyên)
-                        # Cần cập nhật để hỗ trợ system prompt nếu cần
+                        # Logic xử lý Knowledge Base
                         retrieval_config = {"numberOfResults": num_results} if 'num_results' in locals() else {}
                         
                         if image_bytes:
@@ -148,21 +147,32 @@ with col4:
                     else:
                         # Xử lý không dùng Knowledge Base
                         if image_bytes:
-                            # Cần cập nhật library để hỗ trợ system prompt với image
-                            # Hiện tại sử dụng API hiện có
-                            logger.info(f"Processing image request with model: {selected_model_id}")
-                            response = glib.get_response_from_model(
-                                prompt_content=prompt_text, 
-                                image_bytes=image_bytes,
-                                model_id=selected_model_id,
-                                temperature=temperature,
-                                top_p=top_p,
-                                max_tokens=max_tokens
-                            )
+                            if has_system_prompt:
+                                # Sử dụng hàm mới với system prompt và image
+                                logger.info(f"Processing image request with system prompt and model: {selected_model_id}")
+                                response = glib.get_response_from_model_with_system(
+                                    prompt_content=prompt_text,
+                                    image_bytes=image_bytes,
+                                    system_prompt=system_prompt,
+                                    model_id=selected_model_id,
+                                    temperature=temperature,
+                                    top_p=top_p,
+                                    max_tokens=max_tokens
+                                )
+                            else:
+                                # Không có system prompt
+                                logger.info(f"Processing image request with model: {selected_model_id}")
+                                response = glib.get_response_from_model(
+                                    prompt_content=prompt_text, 
+                                    image_bytes=image_bytes,
+                                    model_id=selected_model_id,
+                                    temperature=temperature,
+                                    top_p=top_p,
+                                    max_tokens=max_tokens
+                                )
                         else:
                             # Sử dụng system prompt nếu có
                             if has_system_prompt:
-                                # Cần thêm hàm mới vào library
                                 logger.info(f"Processing text request with system prompt and model: {selected_model_id}")
                                 response = glib.get_text_response_with_system(
                                     prompt_content=prompt_text,
@@ -182,9 +192,8 @@ with col4:
                                     max_tokens=max_tokens
                                 )
                     
-                    # Hiển thị kết quả (logic hiện tại)
+                    # Hiển thị kết quả
                     st.write(response)
-
                         
                 except Exception as e:
                     logger.error(f"Error during processing: {str(e)}")
