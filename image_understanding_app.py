@@ -12,20 +12,20 @@ logger = logging.getLogger(__name__)
 st.set_page_config(layout="wide", page_title="Image Understanding")
 st.title("Image Understanding")
 
-# Chia layout thành 3 cột
+# Chia layout thành 4 cột
 col1, col2, col3, col4 = st.columns([2,2.5,3.5,3.5])
 
 # Dictionary chứa các model options
 model_options_dict = {
     "Amazon Nova Pro": "apac.amazon.nova-pro-v1:0",
     "Amazon Nova Lite": "apac.amazon.nova-lite-v1:0",
-    "Claude 3.5 Sonnet": "anthropic.claude-3-5-sonnet-20240620-v1:0"
+    "Claude 3.5 Sonnet v2": "apac.anthropic.claude-3-5-sonnet-20241022-v2:0"
 }
 
 # Dictionary chứa các knowledge base options
 kb_options_dict = {
     "None": None,
-    "tthau-test-kb-002": "PIGIMPRA55"
+    # "tthau-test-kb-002": "PIGIMPRA55"
 }
 
 # Cột 1: Cấu hình model và parameters
@@ -101,6 +101,51 @@ with col3:
         
         go_button = st.form_submit_button("Go", type="primary")
 
+# Function to process request based on parameters
+def process_request(prompt_text, model_id, temperature, top_p, max_tokens, 
+                   system_prompt=None, image_bytes=None, kb_id=None, num_results=5):
+    """Process request với hàm phù hợp dựa trên tham số đầu vào."""
+    
+    try:
+        # Determine if system prompt should be used
+        has_system_prompt = system_prompt and system_prompt.strip() != ""
+        system_prompt = system_prompt if has_system_prompt else None
+        
+        # KB or regular processing
+        if kb_id:
+            logger.info(f"Processing KB request with model: {model_id}")
+            retrieval_config = {"numberOfResults": num_results} if num_results else {}
+            
+            # Unified KB processing with optional image
+            return glib.process_kb_input(
+                prompt_content=prompt_text,
+                kb_id=kb_id,
+                model_id=model_id,
+                image_bytes=image_bytes,
+                system_prompt=system_prompt,
+                temperature=temperature,
+                top_p=top_p,
+                max_tokens=max_tokens,
+                retrieval_config=retrieval_config,
+                num_results=num_results
+            )
+        else:
+            logger.info(f"Processing regular request with model: {model_id}")
+            # Unified processing function
+            response = glib.process_input(
+                prompt_content=prompt_text,
+                model_id=model_id,
+                system_prompt=system_prompt,
+                image_bytes=image_bytes,
+                temperature=temperature,
+                top_p=top_p,
+                max_tokens=max_tokens
+            )
+            return response, None  # No citations for regular processing
+            
+    except Exception as e:
+        logger.error(f"Error during processing: {str(e)}")
+        raise
 
 # Cột 4: Hiển thị kết quả
 with col4:
@@ -112,88 +157,40 @@ with col4:
         else:
             with st.spinner("Processing..."):
                 try:
-                    # Xác định nếu có hình ảnh hay không
+                    # Get image bytes if uploaded
                     image_bytes = uploaded_file.getvalue() if uploaded_file else None
                     
-                    # Lấy system prompt nếu có
-                    has_system_prompt = 'system_prompt' in locals() and system_prompt.strip() != ""
+                    # Get system prompt if provided
+                    sys_prompt = system_prompt.strip() if 'system_prompt' in locals() and system_prompt.strip() else None
                     
-                    # Lựa chọn phương thức xử lý phù hợp dựa trên input và Knowledge Base
-                    if enable_kb and selected_kb_id:
-                        # Logic xử lý Knowledge Base
-                        retrieval_config = {"numberOfResults": num_results} if 'num_results' in locals() else {}
-                        
-                        if image_bytes:
-                            response, citations = glib.get_kb_response_with_image(
-                                prompt_content=prompt_text,
-                                kb_id=selected_kb_id,
-                                image_bytes=image_bytes,
-                                model_id=selected_model_id,
-                                temperature=temperature,
-                                top_p=top_p,
-                                max_tokens=max_tokens,
-                                retrieval_config=retrieval_config
-                            )
-                        else:
-                            response, citations = glib.get_kb_response(
-                                prompt_content=prompt_text,
-                                kb_id=selected_kb_id,
-                                model_id=selected_model_id,
-                                temperature=temperature,
-                                top_p=top_p,
-                                max_tokens=max_tokens,
-                                retrieval_config=retrieval_config
-                            )
-                    else:
-                        # Xử lý không dùng Knowledge Base
-                        if image_bytes:
-                            if has_system_prompt:
-                                # Sử dụng hàm mới với system prompt và image
-                                logger.info(f"Processing image request with system prompt and model: {selected_model_id}")
-                                response = glib.get_response_from_model_with_system(
-                                    prompt_content=prompt_text,
-                                    image_bytes=image_bytes,
-                                    system_prompt=system_prompt,
-                                    model_id=selected_model_id,
-                                    temperature=temperature,
-                                    top_p=top_p,
-                                    max_tokens=max_tokens
-                                )
-                            else:
-                                # Không có system prompt
-                                logger.info(f"Processing image request with model: {selected_model_id}")
-                                response = glib.get_response_from_model(
-                                    prompt_content=prompt_text, 
-                                    image_bytes=image_bytes,
-                                    model_id=selected_model_id,
-                                    temperature=temperature,
-                                    top_p=top_p,
-                                    max_tokens=max_tokens
-                                )
-                        else:
-                            # Sử dụng system prompt nếu có
-                            if has_system_prompt:
-                                logger.info(f"Processing text request with system prompt and model: {selected_model_id}")
-                                response = glib.get_text_response_with_system(
-                                    prompt_content=prompt_text,
-                                    system_prompt=system_prompt,
-                                    model_id=selected_model_id,
-                                    temperature=temperature,
-                                    top_p=top_p,
-                                    max_tokens=max_tokens
-                                )
-                            else:
-                                logger.info(f"Processing text request with model: {selected_model_id}")
-                                response = glib.get_text_response(
-                                    prompt_content=prompt_text,
-                                    model_id=selected_model_id,
-                                    temperature=temperature,
-                                    top_p=top_p,
-                                    max_tokens=max_tokens
-                                )
+                    # Get KB ID if enabled
+                    kb_id = selected_kb_id if enable_kb else None
+                    
+                    # Get num results for KB
+                    kb_results = num_results if 'num_results' in locals() else 5
+                    
+                    # Process request
+                    response, citations = process_request(
+                        prompt_text=prompt_text,
+                        model_id=selected_model_id,
+                        temperature=temperature,
+                        top_p=top_p,
+                        max_tokens=max_tokens,
+                        system_prompt=sys_prompt,
+                        image_bytes=image_bytes,
+                        kb_id=kb_id,
+                        num_results=kb_results
+                    )
                     
                     # Hiển thị kết quả
                     st.write(response)
+                    
+                    # Display citations if available
+                    if citations:
+                        with st.expander("Citations", expanded=False):
+                            for i, citation in enumerate(citations, 1):
+                                st.markdown(f"**Citation {i}:**")
+                                st.json(citation)
                         
                 except Exception as e:
                     logger.error(f"Error during processing: {str(e)}")

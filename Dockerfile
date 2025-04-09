@@ -8,12 +8,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy source code
 COPY image_understanding_lib.py .
+
 COPY image_understanding_app.py .
 
 # Cấu hình AWS credentials sẽ được mount từ máy host
 
 # Port mặc định cho Streamlit
-EXPOSE 8501
+EXPOSE 8080
 
 # Sửa lỗi port và đường dẫn
 ENV PATH="/usr/local/bin:${PATH}"
