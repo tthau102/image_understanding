@@ -19,4 +19,3 @@ EXPOSE 8501
 ENV PATH="/usr/local/bin:${PATH}"
 CMD ["streamlit", "run", "image_understanding_app.py", "--server.address=0.0.0.0", "--server.port=8080"]
 
-# docker run -p 8080:8080 -v ~/.aws:/root/.aws image-understanding-app
