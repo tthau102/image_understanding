@@ -22,12 +22,6 @@ model_options_dict = {
     "Claude 3.5 Sonnet v2": "apac.anthropic.claude-3-5-sonnet-20241022-v2:0"
 }
 
-# Dictionary chứa các knowledge base options
-kb_options_dict = {
-    "None": None,
-    # "tthau-test-kb-002": "PIGIMPRA55"
-}
-
 # Cột 1: Cấu hình model và parameters
 with col1:
     st.subheader("Model Configuration")
@@ -43,161 +37,152 @@ with col1:
     # Inference parameters
     st.subheader("Inference Parameters")
     
-    help_temperature = "Controls randomness. Lower values are more deterministic, higher values more creative."
-    help_top_p = "Controls token choices. Lower values focus on most likely tokens."
-    help_max_tokens = "Maximum number of tokens to generate in the response."
+    temperature = st.slider("Temperature", min_value=0.0, max_value=1.0, value=0.0, step=0.1, format='%.1f')
+    top_p = st.slider("Top P", min_value=0.1, max_value=1.0, value=0.7, step=0.1, format='%.1f')
+    top_k = st.slider("Top K", min_value=1, max_value=500, value=45, step=1)
+    max_tokens = st.slider("Max Tokens", min_value=100, max_value=4000, value=3000, step=100)
     
-    temperature = st.slider("Temperature", min_value=0.0, max_value=1.0, value=0.0, step=0.1, 
-                           help=help_temperature, format='%.1f')
-    top_p = st.slider("Top P", min_value=0.1, max_value=1.0, value=1.0, step=0.1, 
-                     help=help_top_p, format='%.1f')
-    max_tokens = st.slider("Max Tokens", min_value=100, max_value=4000, value=2000, step=100, 
-                          help=help_max_tokens)
-
-    # Knowledge Base configuration
-    st.subheader("Knowledge Base")
-    enable_kb = st.checkbox("Enable Knowledge Base", value=False)
-    
-    kb_selection = st.selectbox(
-        "Knowledge Base:",
-        options=list(kb_options_dict.keys()),
-        index=0,
-        disabled=not enable_kb
+    # System Prompt
+    st.subheader("System Prompt")
+    system_prompt = st.text_area(
+        "Enter system instructions:",
+        height=100,
+        help="Instructions that guide the model's behavior.",
+        placeholder="You are an expert at analyzing images. Be concise and detailed in your responses."
     )
-    selected_kb_id = kb_options_dict[kb_selection]
-    
-    # KB Retrieval settings nếu enable KB
-    if enable_kb and selected_kb_id:
-        num_results = st.slider("Number of Results", min_value=1, max_value=10, value=5, step=1,
-                         help="Maximum number of retrieval results")
 
-# Cột 2: Upload hình ảnh
+# Initialize session state variables if they don't exist
+if 'uploaded_files1' not in st.session_state:
+    st.session_state.uploaded_files1 = None
+if 'uploaded_files2' not in st.session_state:
+    st.session_state.uploaded_files2 = None
+
+# Cột 2: Upload hình ảnh 1 và prompt 1
 with col2:
-    st.subheader("Select an Image (Optional)")
-    uploaded_file = st.file_uploader("Upload an image", type=['png', 'jpg', 'jpeg'])
+    # Phần trên: Upload hình ảnh 1
+    st.subheader("First Image")
+    uploaded_files1 = st.file_uploader("Upload first image", type=['png', 'jpg', 'jpeg'], key="image1")
+    st.session_state.uploaded_files1 = uploaded_files1
     
-    if uploaded_file:
-        uploaded_image_preview = glib.get_bytesio_from_bytes(uploaded_file.getvalue())
-        st.image(uploaded_image_preview)
+    if uploaded_files1:
+        # Hiển thị ảnh đã upload với kích thước nhỏ hơn (1/2 width của cột)
+        uploaded_image_preview = glib.get_bytesio_from_bytes(uploaded_files1.getvalue())
+        st.image(uploaded_image_preview, width=100)
+    
+    # Phần dưới: Nhập prompt 1
+    st.subheader("First Prompt")
+    prompt_text1 = st.text_area(
+        "Enter your first prompt:",
+        height=200,
+        key="prompt1",
+        help="Enter your question or prompt related to the first image.",
+        placeholder="Look, describe and remember the item."
+    )
 
-# Cột 3: Nhập prompt
+# Cột 3: Upload hình ảnh 2 và prompt 2
 with col3:
-    st.subheader("Prompt")
+    # Phần trên: Upload hình ảnh 2
+    st.subheader("Second Image")
+    uploaded_files2 = st.file_uploader("Upload second image", type=['png', 'jpg', 'jpeg'], key="image2")
+    st.session_state.uploaded_files2 = uploaded_files2
     
-    with st.form(key="prompt_form"):
-        with st.expander("System Prompt (Optional)", expanded=False):
-            system_prompt = st.text_area(
-                "Enter system instructions:",
-                height=100,
-                help="Instructions that guide the model's behavior but aren't shown as part of the main prompt.",
-                placeholder="You are an expert at analyzing images. Be concise and detailed in your responses."
-            )
-        
-        prompt_text = st.text_area(
-            "Enter your User prompt:",
-            height=400,
-            help="Enter your question or prompt.",
-        )
-        
-        go_button = st.form_submit_button("Go", type="primary")
+    if uploaded_files2:
+        # Hiển thị ảnh đã upload với kích thước nhỏ hơn (1/2 width của cột)
+        uploaded_image_preview = glib.get_bytesio_from_bytes(uploaded_files2.getvalue())
+        st.image(uploaded_image_preview, use_column_width=True)
+    
+    # Phần dưới: Nhập prompt 2
+    st.subheader("Second Prompt")
+    prompt_text2 = st.text_area(
+        "Enter your second prompt:",
+        height=200,
+        key="prompt2",
+        help="Enter your question or prompt related to the second image.",
+        placeholder="Count the remembered item in this fridge"
+    )
 
-# Function to process request based on parameters
-def process_request(prompt_text, model_id, temperature, top_p, max_tokens, 
-                   system_prompt=None, image_bytes=None, kb_id=None, num_results=5):
-    """Process request với hàm phù hợp dựa trên tham số đầu vào."""
+# Function to process multi-image-prompt request
+def process_multi_image_prompt_request(image_bytes_list, prompt_list, model_id, system_prompt=None,
+                                     temperature=0.0, top_p=0.9, top_k=45, max_tokens=2000):
+    """Process request with multiple image-prompt pairs."""
     
     try:
         # Determine if system prompt should be used
         has_system_prompt = system_prompt and system_prompt.strip() != ""
         system_prompt = system_prompt if has_system_prompt else None
         
-        # KB or regular processing
-        if kb_id:
-            logger.info(f"Processing KB request with model: {model_id}")
-            retrieval_config = {"numberOfResults": num_results} if num_results else {}
-            
-            # Unified KB processing with optional image
-            return glib.process_kb_input(
-                prompt_content=prompt_text,
-                kb_id=kb_id,
-                model_id=model_id,
-                image_bytes=image_bytes,
-                system_prompt=system_prompt,
-                temperature=temperature,
-                top_p=top_p,
-                max_tokens=max_tokens,
-                retrieval_config=retrieval_config,
-                num_results=num_results
-            )
-        else:
-            logger.info(f"Processing regular request with model: {model_id}")
-            # Unified processing function
-            response = glib.process_input(
-                prompt_content=prompt_text,
-                model_id=model_id,
-                system_prompt=system_prompt,
-                image_bytes=image_bytes,
-                temperature=temperature,
-                top_p=top_p,
-                max_tokens=max_tokens
-            )
-            return response, None  # No citations for regular processing
+        # Unified processing function for multiple image-prompt pairs
+        response = glib.process_input_multi_image_prompt(
+            image_bytes_list=image_bytes_list,
+            prompt_list=prompt_list,
+            model_id=model_id,
+            system_prompt=system_prompt,
+            temperature=temperature,
+            top_p=top_p,
+            top_k=top_k,
+            max_tokens=max_tokens
+        )
+        return response
             
     except Exception as e:
         logger.error(f"Error during processing: {str(e)}")
         raise
 
-# Cột 4: Hiển thị kết quả
+# Cột 4: Hiển thị kết quả và nút "Go"
 with col4:
     st.subheader("Result")
+    
+    # Nút "Go" button
+    go_button = st.button("Go", type="primary")
 
     if go_button:
-        if not prompt_text.strip():
-            st.error("Please enter a prompt")
+        valid_input = False
+        
+        # Kiểm tra có đủ input để xử lý
+        if (uploaded_files1 and prompt_text1.strip()) or (uploaded_files2 and prompt_text2.strip()):
+            valid_input = True
+        
+        if not valid_input:
+            st.error("Please upload at least one image and provide a corresponding prompt")
         else:
             with st.spinner("Processing..."):
                 try:
-                    # Get image bytes if uploaded
-                    image_bytes = uploaded_file.getvalue() if uploaded_file else None
+                    # Chuẩn bị danh sách image bytes và prompts
+                    image_bytes_list = []
+                    prompt_list = []
+                    
+                    # Thêm image 1 và prompt 1 nếu có
+                    if uploaded_files1 and prompt_text1.strip():
+                        image_bytes_list.append(uploaded_files1.getvalue())
+                        prompt_list.append(prompt_text1.strip())
+                    
+                    # Thêm image 2 và prompt 2 nếu có
+                    if uploaded_files2 and prompt_text2.strip():
+                        image_bytes_list.append(uploaded_files2.getvalue())
+                        prompt_list.append(prompt_text2.strip())
                     
                     # Get system prompt if provided
-                    sys_prompt = system_prompt.strip() if 'system_prompt' in locals() and system_prompt.strip() else None
+                    sys_prompt = system_prompt.strip() if system_prompt.strip() else None
                     
-                    # Get KB ID if enabled
-                    kb_id = selected_kb_id if enable_kb else None
-                    
-                    # Get num results for KB
-                    kb_results = num_results if 'num_results' in locals() else 5
-                    
-                    # Process request
-                    response, citations = process_request(
-                        prompt_text=prompt_text,
+                    # Process multi-image-prompt request
+                    response = process_multi_image_prompt_request(
+                        image_bytes_list=image_bytes_list,
+                        prompt_list=prompt_list,
                         model_id=selected_model_id,
                         temperature=temperature,
                         top_p=top_p,
+                        top_k=top_k,
                         max_tokens=max_tokens,
-                        system_prompt=sys_prompt,
-                        image_bytes=image_bytes,
-                        kb_id=kb_id,
-                        num_results=kb_results
+                        system_prompt=sys_prompt
                     )
                     
                     # Hiển thị kết quả
                     st.write(response)
-                    
-                    # Display citations if available
-                    if citations:
-                        with st.expander("Citations", expanded=False):
-                            for i, citation in enumerate(citations, 1):
-                                st.markdown(f"**Citation {i}:**")
-                                st.json(citation)
                         
                 except Exception as e:
                     logger.error(f"Error during processing: {str(e)}")
                     st.error(f"Đã xảy ra lỗi: {str(e)}")
                     if "AccessDeniedException" in str(e):
-                        st.error("Kiểm tra IAM Role có đủ quyền truy cập vào Bedrock API và Knowledge Base")
-                    elif "ResourceNotFoundException" in str(e):
-                        st.error("Knowledge Base không tồn tại hoặc không khả dụng")
+                        st.error("Kiểm tra IAM Role có đủ quyền truy cập vào Bedrock API")
                     else:
                         st.error("Kiểm tra IAM Role có đủ quyền truy cập vào Bedrock Model")
