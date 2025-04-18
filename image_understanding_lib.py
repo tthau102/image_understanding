@@ -29,7 +29,7 @@ def process_input_multi_image_prompt(image_bytes_list, prompt_list, model_id, sy
     Xử lý input với nhiều cặp ảnh-prompt theo thứ tự xen kẽ image1, prompt1, image2, prompt2
     
     Args:
-        image_bytes_list: List of binary image data
+        image_bytes_list: List of binary image data (có thể chứa None)
         prompt_list: List of prompt texts corresponding to images
         model_id: ID của model Bedrock
         system_prompt: System prompt (optional)
@@ -50,7 +50,8 @@ def process_input_multi_image_prompt(image_bytes_list, prompt_list, model_id, sy
             content = []
             
             # Thêm ảnh và prompt theo cặp
-            for i in range(len(image_bytes_list)):
+            for i in range(len(prompt_list)):
+                # Chỉ thêm ảnh nếu có và không phải None
                 if i < len(image_bytes_list) and image_bytes_list[i] is not None:
                     image_format = detect_image_format(image_bytes_list[i])
                     content.append({
@@ -62,6 +63,7 @@ def process_input_multi_image_prompt(image_bytes_list, prompt_list, model_id, sy
                         }
                     })
                 
+                # Luôn thêm prompt nếu có
                 if i < len(prompt_list) and prompt_list[i] is not None:
                     content.append({"type": "text", "text": prompt_list[i]})
             
@@ -100,45 +102,54 @@ def process_input_multi_image_prompt(image_bytes_list, prompt_list, model_id, sy
             return response_body['content'][0]['text']
             
         else:
-            # Cấu trúc cho Amazon models (Nova) - sử dụng converse API
+            # Keep your existing content preparation
             content = []
-            
+
             # Add system prompt if provided
             if system_prompt:
                 content.append({"text": f"System instructions: {system_prompt}"})
-            
-            # Thêm ảnh và prompt theo cặp
-            for i in range(len(image_bytes_list)):
+
+            # Add images and prompts in pairs
+            for i in range(len(prompt_list)):
                 if i < len(image_bytes_list) and image_bytes_list[i] is not None:
                     image_format = detect_image_format(image_bytes_list[i])
                     content.append({
                         "image": {
                             "format": image_format,
                             "source": {
-                                "bytes": image_bytes_list[i]
+                                "bytes": base64.b64encode(image_bytes_list[i]).decode('utf-8')
                             }
                         }
                     })
                 
                 if i < len(prompt_list) and prompt_list[i] is not None:
                     content.append({"text": prompt_list[i]})
-            
-            # Prepare message
-            message = {
-                "role": "user",
-                "content": content
-            }
-            
-            # Call converse API
-            response = bedrock.converse(
+
+            # Nova Pro specific invoke structure
+            response = bedrock.invoke_model(
                 modelId=model_id,
-                messages=[message],
-                inferenceConfig={
-                    "maxTokens": max_tokens,
-                    "temperature": temperature,
-                    "topP": top_p
-                },
+                contentType="application/json",
+                accept="application/json",
+                body=json.dumps({
+                    "inferenceConfig": {
+                        "max_new_tokens": max_tokens
+                    },
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": content
+                        }
+                    ]
+                })
             )
+
+            # Get the response
+            response_body = json.loads(response.get('body').read())
+            return response_body['output']['message']['content'][0]['text']
+
+
+
+
 
             print("****************************************************************************************************************************************")
             for i in range(len(content)):

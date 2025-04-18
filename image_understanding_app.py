@@ -129,6 +129,7 @@ def process_multi_image_prompt_request(image_bytes_list, prompt_list, model_id, 
         raise
 
 # Cột 4: Hiển thị kết quả và nút "Go"
+# Cột 4: Hiển thị kết quả và nút "Go"
 with col4:
     st.subheader("Result")
     
@@ -136,14 +137,12 @@ with col4:
     go_button = st.button("Go", type="primary")
 
     if go_button:
-        valid_input = False
+        # Kiểm tra có bất kỳ input nào để xử lý
+        has_any_input = (uploaded_files1 is not None or prompt_text1.strip() or 
+                         uploaded_files2 is not None or prompt_text2.strip())
         
-        # Kiểm tra có đủ input để xử lý
-        if (uploaded_files1 and prompt_text1.strip()) or (uploaded_files2 and prompt_text2.strip()):
-            valid_input = True
-        
-        if not valid_input:
-            st.error("Please upload at least one image and provide a corresponding prompt")
+        if not has_any_input:
+            st.error("Please provide at least one input (image or prompt)")
         else:
             with st.spinner("Processing..."):
                 try:
@@ -151,15 +150,25 @@ with col4:
                     image_bytes_list = []
                     prompt_list = []
                     
-                    # Thêm image 1 và prompt 1 nếu có
-                    if uploaded_files1 and prompt_text1.strip():
-                        image_bytes_list.append(uploaded_files1.getvalue())
-                        prompt_list.append(prompt_text1.strip())
+                    # Xử lý các trường hợp đầu vào cho phần 1
+                    if uploaded_files1 is not None or prompt_text1.strip():
+                        # Xử lý image 1
+                        image_bytes = uploaded_files1.getvalue() if uploaded_files1 else None
+                        image_bytes_list.append(image_bytes)
+                        
+                        # Xử lý prompt 1
+                        prompt = prompt_text1.strip() if prompt_text1.strip() else "Describe this image"
+                        prompt_list.append(prompt)
                     
-                    # Thêm image 2 và prompt 2 nếu có
-                    if uploaded_files2 and prompt_text2.strip():
-                        image_bytes_list.append(uploaded_files2.getvalue())
-                        prompt_list.append(prompt_text2.strip())
+                    # Xử lý các trường hợp đầu vào cho phần 2
+                    if uploaded_files2 is not None or prompt_text2.strip():
+                        # Xử lý image 2
+                        image_bytes = uploaded_files2.getvalue() if uploaded_files2 else None
+                        image_bytes_list.append(image_bytes)
+                        
+                        # Xử lý prompt 2
+                        prompt = prompt_text2.strip() if prompt_text2.strip() else "Describe this image"
+                        prompt_list.append(prompt)
                     
                     # Get system prompt if provided
                     sys_prompt = system_prompt.strip() if system_prompt.strip() else None
@@ -186,3 +195,8 @@ with col4:
                         st.error("Kiểm tra IAM Role có đủ quyền truy cập vào Bedrock API")
                     else:
                         st.error("Kiểm tra IAM Role có đủ quyền truy cập vào Bedrock Model")
+
+
+
+
+
