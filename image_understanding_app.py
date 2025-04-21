@@ -3,6 +3,7 @@ import image_understanding_lib as glib
 import json
 import re
 import logging
+import uuid
 
 # Thiết lập logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -12,8 +13,45 @@ logger = logging.getLogger(__name__)
 st.set_page_config(layout="wide", page_title="Image Understanding")
 st.title("Image Understanding")
 
-# Chia layout thành 4 cột
-col1, col2, col3, col4 = st.columns([2,2.5,3.5,3.5])
+# Định nghĩa CSS để tạo khung và styling
+st.markdown("""
+<style>
+    .message-container {
+        border: 1px solid #ccc;
+        border-radius: 8px;
+        padding: 10px;
+        margin-bottom: 20px;
+        background-color: #f9f9f9;
+    }
+    .user-message {
+        background-color: #f0f7ff;
+        border-left: 5px solid #4361ee;
+    }
+    .assistant-message {
+        background-color: #f0fff4;
+        border-left: 5px solid #4cc9a0;
+    }
+    .content-item {
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        padding: 10px;
+        margin: 10px 0;
+        background-color: #ffffff;
+    }
+    .message-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 10px;
+    }
+    .controls-container {
+        background-color: #f0f0f0;
+        border-radius: 5px;
+        padding: 5px;
+        margin-top: 5px;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 # Dictionary chứa các model options
 model_options_dict = {
@@ -22,172 +60,319 @@ model_options_dict = {
     "Claude 3.5 Sonnet v2": "apac.anthropic.claude-3-5-sonnet-20241022-v2:0"
 }
 
+# Initialize session state
+if "messages" not in st.session_state:
+    st.session_state.messages = [
+        {
+            "id": str(uuid.uuid4()),
+            "role": "user",
+            "content": [
+                {
+                    "id": str(uuid.uuid4()),
+                    "type": "text",
+                    "data": ""
+                }
+            ]
+        }
+    ]
+
+# Chia layout thành 3 cột
+col1, col2, col3 = st.columns([2, 3, 2])
+
 # Cột 1: Cấu hình model và parameters
 with col1:
-    st.subheader("Model Configuration")
-    
-    # Chọn model
-    model_selection = st.selectbox(
-        "Model:",
-        options=list(model_options_dict.keys()),
-        index=0,
-    )
-    selected_model_id = model_options_dict[model_selection]
-
-    # Inference parameters
-    st.subheader("Inference Parameters")
-    
-    temperature = st.slider("Temperature", min_value=0.0, max_value=1.0, value=0.0, step=0.1, format='%.1f')
-    top_p = st.slider("Top P", min_value=0.1, max_value=1.0, value=0.7, step=0.1, format='%.1f')
-    top_k = st.slider("Top K", min_value=1, max_value=500, value=45, step=1)
-    max_tokens = st.slider("Max Tokens", min_value=100, max_value=4000, value=3000, step=100)
-    
-    # System Prompt
-    st.subheader("System Prompt")
-    system_prompt = st.text_area(
-        "Enter system instructions:",
-        height=100,
-        help="Instructions that guide the model's behavior.",
-        placeholder="You are an expert at analyzing images. Be concise and detailed in your responses."
-    )
-
-# Initialize session state variables if they don't exist
-if 'uploaded_files1' not in st.session_state:
-    st.session_state.uploaded_files1 = None
-if 'uploaded_files2' not in st.session_state:
-    st.session_state.uploaded_files2 = None
-
-# Cột 2: Upload hình ảnh 1 và prompt 1
-with col2:
-    # Phần trên: Upload hình ảnh 1
-    st.subheader("First Image")
-    uploaded_files1 = st.file_uploader("Upload first image", type=['png', 'jpg', 'jpeg'], key="image1")
-    st.session_state.uploaded_files1 = uploaded_files1
-    
-    if uploaded_files1:
-        # Hiển thị ảnh đã upload với kích thước nhỏ hơn (1/2 width của cột)
-        uploaded_image_preview = glib.get_bytesio_from_bytes(uploaded_files1.getvalue())
-        st.image(uploaded_image_preview, width=100)
-    
-    # Phần dưới: Nhập prompt 1
-    st.subheader("First Prompt")
-    prompt_text1 = st.text_area(
-        "Enter your first prompt:",
-        height=200,
-        key="prompt1",
-        help="Enter your question or prompt related to the first image.",
-        placeholder="Look, describe and remember the item."
-    )
-
-# Cột 3: Upload hình ảnh 2 và prompt 2
-with col3:
-    # Phần trên: Upload hình ảnh 2
-    st.subheader("Second Image")
-    uploaded_files2 = st.file_uploader("Upload second image", type=['png', 'jpg', 'jpeg'], key="image2")
-    st.session_state.uploaded_files2 = uploaded_files2
-    
-    if uploaded_files2:
-        # Hiển thị ảnh đã upload với kích thước nhỏ hơn (1/2 width của cột)
-        uploaded_image_preview = glib.get_bytesio_from_bytes(uploaded_files2.getvalue())
-        st.image(uploaded_image_preview, use_column_width=True)
-    
-    # Phần dưới: Nhập prompt 2
-    st.subheader("Second Prompt")
-    prompt_text2 = st.text_area(
-        "Enter your second prompt:",
-        height=200,
-        key="prompt2",
-        help="Enter your question or prompt related to the second image.",
-        placeholder="Count the remembered item in this fridge"
-    )
-
-# Function to process multi-image-prompt request
-def process_multi_image_prompt_request(image_bytes_list, prompt_list, model_id, system_prompt=None,
-                                     temperature=0.0, top_p=0.9, top_k=45, max_tokens=2000):
-    """Process request with multiple image-prompt pairs."""
-    
-    try:
-        # Determine if system prompt should be used
-        has_system_prompt = system_prompt and system_prompt.strip() != ""
-        system_prompt = system_prompt if has_system_prompt else None
+    with st.container(border=True):
+        st.subheader("Model Configuration")
         
-        # Unified processing function for multiple image-prompt pairs
-        response = glib.process_input_multi_image_prompt(
-            image_bytes_list=image_bytes_list,
-            prompt_list=prompt_list,
-            model_id=model_id,
-            system_prompt=system_prompt,
-            temperature=temperature,
-            top_p=top_p,
-            top_k=top_k,
-            max_tokens=max_tokens
+        # Chọn model
+        model_selection = st.selectbox(
+            "Model:",
+            options=list(model_options_dict.keys()),
+            index=0,
         )
-        return response
-            
-    except Exception as e:
-        logger.error(f"Error during processing: {str(e)}")
-        raise
+        selected_model_id = model_options_dict[model_selection]
 
-# Cột 4: Hiển thị kết quả và nút "Go"
-# Cột 4: Hiển thị kết quả và nút "Go"
-with col4:
-    st.subheader("Result")
-    
-    # Nút "Go" button
-    go_button = st.button("Go", type="primary")
-
-    if go_button:
-        # Kiểm tra có bất kỳ input nào để xử lý
-        has_any_input = (uploaded_files1 is not None or prompt_text1.strip() or 
-                         uploaded_files2 is not None or prompt_text2.strip())
+    with st.container(border=True):
+        st.subheader("Inference Parameters")
         
-        if not has_any_input:
-            st.error("Please provide at least one input (image or prompt)")
-        else:
+        temperature = st.slider("Temperature", min_value=0.0, max_value=1.0, value=0.0, step=0.1, format='%.1f')
+        top_p = st.slider("Top P", min_value=0.1, max_value=1.0, value=0.7, step=0.1, format='%.1f')
+        top_k = st.slider("Top K", min_value=1, max_value=500, value=45, step=1)
+        max_tokens = st.slider("Max Tokens", min_value=100, max_value=4000, value=3000, step=100)
+    
+    with st.container(border=True):
+        st.subheader("System Prompt")
+        system_prompt = st.text_area(
+            "Enter system instructions:",
+            height=100,
+            help="Instructions that guide the model's behavior.",
+            placeholder="You are an expert at analyzing images. Be concise and detailed in your responses."
+        )
+
+# Cột 2: Messages và Content
+with col2:
+    with st.container(border=True):
+        st.subheader("Messages")
+        
+        # Function to add a new content item to a message
+        def add_content_item(message_id):
+            for i, msg in enumerate(st.session_state.messages):
+                if msg["id"] == message_id:
+                    st.session_state.messages[i]["content"].append({
+                        "id": str(uuid.uuid4()),
+                        "type": "text",
+                        "data": ""
+                    })
+                    break
+        
+        # Function to add a new message
+        def add_message():
+            st.session_state.messages.append({
+                "id": str(uuid.uuid4()),
+                "role": "user",
+                "content": [
+                    {
+                        "id": str(uuid.uuid4()),
+                        "type": "text",
+                        "data": ""
+                    }
+                ]
+            })
+        
+        # Function to delete a message
+        def delete_message(message_id):
+            st.session_state.messages = [msg for msg in st.session_state.messages if msg["id"] != message_id]
+        
+        # Function to delete a content item
+        def delete_content_item(message_id, content_id):
+            for i, msg in enumerate(st.session_state.messages):
+                if msg["id"] == message_id:
+                    if len(msg["content"]) > 1:  # Don't delete the last content item
+                        st.session_state.messages[i]["content"] = [
+                            content for content in msg["content"] if content["id"] != content_id
+                        ]
+                    break
+        
+        # Function to update content data
+        def update_content_data(message_id, content_id, data):
+            for i, msg in enumerate(st.session_state.messages):
+                if msg["id"] == message_id:
+                    for j, content in enumerate(msg["content"]):
+                        if content["id"] == content_id:
+                            st.session_state.messages[i]["content"][j]["data"] = data
+                            break
+                    break
+        
+        # Function to update content type
+        def update_content_type(message_id, content_id, content_type):
+            for i, msg in enumerate(st.session_state.messages):
+                if msg["id"] == message_id:
+                    for j, content in enumerate(msg["content"]):
+                        if content["id"] == content_id:
+                            st.session_state.messages[i]["content"][j]["type"] = content_type
+                            # Reset data when changing type
+                            if content_type == "image":
+                                st.session_state.messages[i]["content"][j]["data"] = None
+                            else:
+                                st.session_state.messages[i]["content"][j]["data"] = ""
+                            break
+                    break
+        
+        # Function to update message role
+        def update_message_role(message_id, role):
+            for i, msg in enumerate(st.session_state.messages):
+                if msg["id"] == message_id:
+                    st.session_state.messages[i]["role"] = role
+                    break
+        
+        # Display all messages
+        for msg_idx, message in enumerate(st.session_state.messages):
+            # Create message container with appropriate styling based on role
+            message_class = "user-message" if message["role"] == "user" else "assistant-message"
+            
+            with st.expander(f"Message {msg_idx+1}: {message['role'].capitalize()}", expanded=True):
+                # Message header with role selector and delete button
+                cols = st.columns([2, 3, 1.5])
+                with cols[0]:
+                    role = st.selectbox(
+                        "Role",
+                        options=["user", "assistant"],
+                        index=0 if message["role"] == "user" else 1,
+                        key=f"role_{message['id']}",
+                        on_change=update_message_role,
+                        args=(message["id"], "user" if st.session_state.get(f"role_{message['id']}") == 0 else "assistant")
+                    )
+                
+                with cols[2]:
+                    st.button("🗑️ Delete Message", key=f"delete_msg_{message['id']}", 
+                             on_click=delete_message, args=(message["id"],))
+                
+                # Display all content items in this message
+                st.markdown(f"##### Content Items ({len(message['content'])})")
+                
+                for content_idx, content in enumerate(message["content"]):
+                    with st.container(border=True):
+                        st.markdown(f"**Item {content_idx+1}**")
+                        # Content item header
+                        cont_cols = st.columns([2, 3, 1])
+                        
+                        with cont_cols[0]:
+                            # Determine current content type index
+                            current_type_index = 0 if content["type"] == "text" else 1
+                            
+                            # Create selectbox for content type
+                            content_type = st.selectbox(
+                                "Content Type",
+                                options=["text", "image"],
+                                index=current_type_index,
+                                key=f"type_{content['id']}",
+                                on_change=update_content_type,
+                                args=(message["id"], content["id"], "text" if st.session_state.get(f"type_{content['id']}") == 0 else "image")
+                            )
+                        
+                        with cont_cols[2]:
+                            st.button("🗑️ Delete", key=f"delete_content_{content['id']}", 
+                                     on_click=delete_content_item, args=(message["id"], content["id"]))
+                        
+                        # Display appropriate input based on content type
+                        if content["type"] == "text":
+                            text_data = st.text_area(
+                                "Text Content",
+                                value=content["data"] if content["data"] is not None else "",
+                                key=f"text_{content['id']}",
+                                height=100
+                            )
+                            update_content_data(message["id"], content["id"], text_data)
+                        else:  # image type
+                            uploaded_file = st.file_uploader(
+                                "Upload Image",
+                                type=['png', 'jpg', 'jpeg'],
+                                key=f"image_{content['id']}"
+                            )
+                            
+                            if uploaded_file:
+                                # Store image bytes in session state
+                                update_content_data(message["id"], content["id"], uploaded_file.getvalue())
+                                
+                                # Display preview
+                                st.image(
+                                    glib.get_bytesio_from_bytes(uploaded_file.getvalue()),
+                                    width=200
+                                )
+                
+                # Add content button
+                st.button("➕ Add Content Item", key=f"add_content_{message['id']}", 
+                         on_click=add_content_item, args=(message["id"],), use_container_width=False)
+        
+        # Add message button
+        st.button("➕ Add New Message", on_click=add_message, use_container_width=False, type="primary")
+
+# Cột 3: Process và Result
+with col3:
+    # Process button trong container riêng
+    with st.container(border=True):
+        st.subheader("Processing")
+        process_button = st.button("Process", type="primary", use_container_width=True)
+    
+    # Result container
+    with st.container(border=True):
+        st.subheader("Result")
+        
+        if process_button:
             with st.spinner("Processing..."):
                 try:
-                    # Chuẩn bị danh sách image bytes và prompts
-                    image_bytes_list = []
-                    prompt_list = []
-                    
-                    # Xử lý các trường hợp đầu vào cho phần 1
-                    if uploaded_files1 is not None or prompt_text1.strip():
-                        # Xử lý image 1
-                        image_bytes = uploaded_files1.getvalue() if uploaded_files1 else None
-                        image_bytes_list.append(image_bytes)
+                    # Display results section
+                    with st.container(border=True):
+                        st.subheader("Result")
                         
-                        # Xử lý prompt 1
-                        prompt = prompt_text1.strip() if prompt_text1.strip() else "Describe this image"
-                        prompt_list.append(prompt)
+                        if process_button:
+                            with st.spinner("Processing..."):
+                                try:
+                                    # Prepare data for processing
+                                    is_anthropic_model = "anthropic" in selected_model_id.lower()
+                                    
+                                    # Convert UI messages to API format
+                                    api_messages = []
+                                    for message in st.session_state.messages:
+                                        api_content = []
+                                        
+                                        for content_item in message["content"]:
+                                            if content_item["type"] == "text" and content_item["data"]:
+                                                if is_anthropic_model:
+                                                    api_content.append({
+                                                        "type": "text",
+                                                        "text": content_item["data"]
+                                                    })
+                                                else:  # Nova
+                                                    api_content.append({
+                                                        "text": content_item["data"]
+                                                    })
+                                            elif content_item["type"] == "image" and content_item["data"]:
+                                                image_bytes = content_item["data"]
+                                                image_format = glib.detect_image_format(image_bytes)
+                                                
+                                                if is_anthropic_model:
+                                                    api_content.append({
+                                                        "type": "image",
+                                                        "source": {
+                                                            "type": "base64",
+                                                            "media_type": f"image/{image_format}",
+                                                            "data": glib.base64.b64encode(image_bytes).decode('utf-8')
+                                                        }
+                                                    })
+                                                else:  # Nova
+                                                    api_content.append({
+                                                        "image": {
+                                                            "format": image_format,
+                                                            "source": {
+                                                                "bytes": glib.base64.b64encode(image_bytes).decode('utf-8')
+                                                            }
+                                                        }
+                                                    })
+                                        
+                                        if api_content:  # Only add message if it has content
+                                            api_messages.append({
+                                                "role": message["role"],
+                                                "content": api_content
+                                            })
+                                    
+                                    # Process with the appropriate API
+                                    response = glib.process_conversation(
+                                        messages=api_messages,
+                                        model_id=selected_model_id,
+                                        system_prompt=system_prompt if system_prompt.strip() else None,
+                                        temperature=temperature,
+                                        top_p=top_p,
+                                        top_k=top_k,
+                                        max_tokens=max_tokens
+                                    )
+                                    
+                                    # Display response
+                                    st.markdown("### Model Response")
+                                    st.markdown(response)
+                                    
+                                    # Thêm response vào conversation
+                                    new_message_id = str(uuid.uuid4())
+                                    st.session_state.messages.append({
+                                        "id": new_message_id,
+                                        "role": "assistant",
+                                        "content": [
+                                            {
+                                                "id": str(uuid.uuid4()),
+                                                "type": "text",
+                                                "data": response
+                                            }
+                                        ]
+                                    })
+                                    
+                                except Exception as e:
+                                    logger.error(f"Error during processing: {str(e)}")
+                                    st.error(f"Đã xảy ra lỗi: {str(e)}")
+                                    if "AccessDeniedException" in str(e):
+                                        st.error("Kiểm tra IAM Role có đủ quyền truy cập vào Bedrock API")
+                                    else:
+                                        st.error("Kiểm tra IAM Role có đủ quyền truy cập vào Bedrock Model")
                     
-                    # Xử lý các trường hợp đầu vào cho phần 2
-                    if uploaded_files2 is not None or prompt_text2.strip():
-                        # Xử lý image 2
-                        image_bytes = uploaded_files2.getvalue() if uploaded_files2 else None
-                        image_bytes_list.append(image_bytes)
-                        
-                        # Xử lý prompt 2
-                        prompt = prompt_text2.strip() if prompt_text2.strip() else "Describe this image"
-                        prompt_list.append(prompt)
-                    
-                    # Get system prompt if provided
-                    sys_prompt = system_prompt.strip() if system_prompt.strip() else None
-                    
-                    # Process multi-image-prompt request
-                    response = process_multi_image_prompt_request(
-                        image_bytes_list=image_bytes_list,
-                        prompt_list=prompt_list,
-                        model_id=selected_model_id,
-                        temperature=temperature,
-                        top_p=top_p,
-                        top_k=top_k,
-                        max_tokens=max_tokens,
-                        system_prompt=sys_prompt
-                    )
-                    
-                    # Hiển thị kết quả
-                    st.write(response)
-                        
                 except Exception as e:
                     logger.error(f"Error during processing: {str(e)}")
                     st.error(f"Đã xảy ra lỗi: {str(e)}")
@@ -195,8 +380,3 @@ with col4:
                         st.error("Kiểm tra IAM Role có đủ quyền truy cập vào Bedrock API")
                     else:
                         st.error("Kiểm tra IAM Role có đủ quyền truy cập vào Bedrock Model")
-
-
-
-
-

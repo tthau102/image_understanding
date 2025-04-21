@@ -23,6 +23,102 @@ def detect_image_format(image_bytes):
     format = imghdr.what(None, h=image_bytes)
     return format or "jpeg"  # Default to jpeg if detection fails
 
+def process_conversation(messages, model_id, system_prompt=None, 
+                        temperature=0.0, top_p=0.9, top_k=45, max_tokens=2000):
+    """
+    Xử lý hội thoại với nhiều message với format giống API
+    
+    Args:
+        messages: List of message objects with role and content array
+        model_id: ID của model Bedrock
+        system_prompt: System prompt (optional)
+        temperature, top_p, max_tokens: Parameters cho model
+    
+    Returns:
+        Phản hồi từ model
+    """
+    try:
+        session = boto3.Session()
+        bedrock = session.client(service_name='bedrock-runtime')
+        
+        # Log input para meters
+        logger.info(f"Processing with model: {model_id}")
+        logger.info(f"Number of messages: {len(messages)}")
+        
+        # Xác định loại model
+        is_anthropic_model = "anthropic" in model_id.lower()
+        
+        if is_anthropic_model:
+            # Cấu trúc cho Anthropic Claude models - sử dụng invoke_model
+            payload = {
+                "anthropic_version": "bedrock-2023-05-31",
+                "max_tokens": max_tokens,
+                "temperature": temperature,
+                "top_p": top_p,
+                "top_k": top_k,
+                "messages": messages
+            }
+            
+            if system_prompt:
+                payload["system"] = system_prompt
+            
+            # Log Claude payload structure for debugging
+            logger.info(f"Claude payload structure - messages count: {len(payload['messages'])}")
+            for msg in payload['messages']:
+                logger.info(f"Message role: {msg['role']}, content items: {len(msg['content'])}")
+            
+            # Call invoke_model API
+            response = bedrock.invoke_model(
+                modelId=model_id,
+                body=json.dumps(payload)
+            )
+
+            response_body = json.loads(response['body'].read().decode('utf-8'))
+            
+            logger.info(f"Claude response usage: {response_body.get('usage', {})}")
+            
+            return response_body['content'][0]['text']
+            
+        else:
+            # Cấu trúc cho Amazon Nova models
+            payload = {
+                "inferenceConfig": {
+                    "max_new_tokens": max_tokens,
+                    "temperature": temperature,
+                    "top_p": top_p,
+                },
+                "messages": messages
+            }
+            
+            # Thêm system prompt vào nếu có
+            if system_prompt and len(messages) > 0 and len(messages[0]["content"]) > 0:
+                # Thêm system prompt vào đầu content của message đầu tiên nếu là text
+                if "text" in messages[0]["content"][0]:
+                    messages[0]["content"].insert(0, {"text": f"System instructions: {system_prompt}"})
+            
+            # Log Nova payload structure for debugging
+            logger.info(f"Nova payload structure - messages count: {len(payload['messages'])}")
+            for msg in payload['messages']:
+                logger.info(f"Message role: {msg['role']}, content items: {len(msg['content'])}")
+            
+            # Call invoke_model API
+            response = bedrock.invoke_model(
+                modelId=model_id,
+                contentType="application/json",
+                accept="application/json",
+                body=json.dumps(payload)
+            )
+
+            # Get the response
+            response_body = json.loads(response.get('body').read())
+            logger.info(f"Nova response structure: {response_body.keys()}")
+            
+            return response_body['output']['message']['content'][0]['text']
+    
+    except Exception as e:
+        logger.error(f"Error processing conversation: {str(e)}")
+        raise
+
 def process_input_multi_image_prompt(image_bytes_list, prompt_list, model_id, system_prompt=None, 
                              temperature=0.0, top_p=0.9, top_k=45, max_tokens=2000):
     """
@@ -90,7 +186,6 @@ def process_input_multi_image_prompt(image_bytes_list, prompt_list, model_id, sy
                 body=json.dumps(payload)
             )
 
-
             response_body = json.loads(response['body'].read().decode('utf-8'))
             
             print("****************************************************************************************************************************************")
@@ -146,22 +241,6 @@ def process_input_multi_image_prompt(image_bytes_list, prompt_list, model_id, sy
             # Get the response
             response_body = json.loads(response.get('body').read())
             return response_body['output']['message']['content'][0]['text']
-
-
-
-
-
-            print("****************************************************************************************************************************************")
-            for i in range(len(content)):
-                if content[i].get('image'):
-                    print('image')
-                if content[i].get('text'):
-                    print('text')
-            print(response['usage'])
-            print("****************************************************************************************************************************************")
-
-            
-            return response['output']['message']['content'][0]['text']
     
     except Exception as e:
         logger.error(f"Error processing input: {str(e)}")
