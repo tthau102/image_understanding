@@ -4,42 +4,7 @@ import imghdr
 import logging
 import json
 import base64
-from PIL import Image, ExifTags
-import io
 
-def fix_image_orientation(image_bytes):
-    """Sửa hướng ảnh dựa vào dữ liệu EXIF."""
-    try:
-        img = Image.open(io.BytesIO(image_bytes))
-        
-        # Kiểm tra và xử lý orientation từ EXIF
-        if hasattr(img, '_getexif') and img._getexif():
-            exif = dict([(ExifTags.TAGS.get(k, k), v) for k, v in img._getexif().items()])
-            if 'Orientation' in exif:
-                orientation = exif['Orientation']
-                
-                if orientation == 2:
-                    img = img.transpose(Image.FLIP_LEFT_RIGHT)
-                elif orientation == 3:
-                    img = img.rotate(180)
-                elif orientation == 4:
-                    img = img.transpose(Image.FLIP_TOP_BOTTOM)
-                elif orientation == 5:
-                    img = img.transpose(Image.FLIP_LEFT_RIGHT).rotate(90)
-                elif orientation == 6:
-                    img = img.rotate(270)
-                elif orientation == 7:
-                    img = img.transpose(Image.FLIP_LEFT_RIGHT).rotate(270)
-                elif orientation == 8:
-                    img = img.rotate(90)
-        
-        # Chuyển lại thành bytes
-        buffer = io.BytesIO()
-        img.save(buffer, format=img.format if img.format else 'JPEG')
-        return buffer.getvalue()
-    except Exception as e:
-        logger.warning(f"Không thể sửa orientation của ảnh: {e}")
-        return image_bytes  # Trả về ảnh gốc nếu có lỗi
 # Thiết lập logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)

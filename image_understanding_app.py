@@ -260,19 +260,18 @@ with col2:
                             # Khi nhận ảnh từ file uploader
                             if uploaded_file:
                                 image_bytes = uploaded_file.getvalue()
-                                image_bytes = glib.fix_image_orientation(image_bytes)  # Sửa orientation
                                 update_content_data(message["id"], content["id"], image_bytes)
                                 
                                 # Display preview
                                 st.image(
                                     glib.get_bytesio_from_bytes(image_bytes),
-                                    width=400
+                                    use_container_width=True
                                 )
                             elif content["data"] is not None:
                                 # Hiển thị hình ảnh đã tải lên trước đó
                                 st.image(
                                     glib.get_bytesio_from_bytes(content["data"]),
-                                    width=400
+                                    use_container_width=True
                                 )
                 
                 # Add content button
