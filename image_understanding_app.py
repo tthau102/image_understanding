@@ -151,6 +151,8 @@ with col2:
                         st.session_state.messages[i]["content"] = [
                             content for content in msg["content"] if content["id"] != content_id
                         ]
+                    else:
+                        st.warning("Không thể xóa content cuối cùng của message")
                     break
         
         # Function to update content data
@@ -169,12 +171,13 @@ with col2:
                 if msg["id"] == message_id:
                     for j, content in enumerate(msg["content"]):
                         if content["id"] == content_id:
-                            st.session_state.messages[i]["content"][j]["type"] = content_type
-                            # Reset data when changing type
-                            if content_type == "image":
-                                st.session_state.messages[i]["content"][j]["data"] = None
-                            else:
-                                st.session_state.messages[i]["content"][j]["data"] = ""
+                            if st.session_state.messages[i]["content"][j]["type"] != content_type:
+                                st.session_state.messages[i]["content"][j]["type"] = content_type
+                                # Reset data when changing type
+                                if content_type == "image":
+                                    st.session_state.messages[i]["content"][j]["data"] = None
+                                else:
+                                    st.session_state.messages[i]["content"][j]["data"] = ""
                             break
                     break
         
@@ -194,14 +197,17 @@ with col2:
                 # Message header with role selector and delete button
                 cols = st.columns([2, 3, 1.5])
                 with cols[0]:
-                    role = st.selectbox(
+                    current_role_index = 0 if message["role"] == "user" else 1
+                    new_role = st.selectbox(
                         "Role",
                         options=["user", "assistant"],
-                        index=0 if message["role"] == "user" else 1,
-                        key=f"role_{message['id']}",
-                        on_change=update_message_role,
-                        args=(message["id"], "user" if st.session_state.get(f"role_{message['id']}") == 0 else "assistant")
+                        index=current_role_index,
+                        key=f"role_{message['id']}"
                     )
+                    
+                    # Check and update if role has changed
+                    if new_role != message["role"]:
+                        update_message_role(message["id"], new_role)
                 
                 with cols[2]:
                     st.button("🗑️ Delete Message", key=f"delete_msg_{message['id']}", 
@@ -218,8 +224,6 @@ with col2:
                         
                         with cont_cols[0]:
                             current_type_index = 0 if content["type"] == "text" else 1
-                            
-                            # Phương pháp mới theo dõi sự thay đổi trực tiếp
                             content_type = st.selectbox(
                                 "Content Type",
                                 options=["text", "image"],
@@ -227,7 +231,7 @@ with col2:
                                 key=f"type_{content['id']}"
                             )
                             
-                            # Kiểm tra và cập nhật sau khi giá trị đã thay đổi
+                            # Check if content type has changed
                             if content_type != content["type"]:
                                 update_content_type(message["id"], content["id"], content_type)
                         
@@ -243,7 +247,9 @@ with col2:
                                 key=f"text_{content['id']}",
                                 height=100
                             )
-                            update_content_data(message["id"], content["id"], text_data)
+                            # Only update if data has changed
+                            if text_data != content["data"]:
+                                update_content_data(message["id"], content["id"], text_data)
                         else:  # image type
                             uploaded_file = st.file_uploader(
                                 "Upload Image",
@@ -251,14 +257,22 @@ with col2:
                                 key=f"image_{content['id']}"
                             )
                             
+                            # Khi nhận ảnh từ file uploader
                             if uploaded_file:
-                                # Store image bytes in session state
-                                update_content_data(message["id"], content["id"], uploaded_file.getvalue())
+                                image_bytes = uploaded_file.getvalue()
+                                image_bytes = glib.fix_image_orientation(image_bytes)  # Sửa orientation
+                                update_content_data(message["id"], content["id"], image_bytes)
                                 
                                 # Display preview
                                 st.image(
-                                    glib.get_bytesio_from_bytes(uploaded_file.getvalue()),
-                                    width=200
+                                    glib.get_bytesio_from_bytes(image_bytes),
+                                    width=400
+                                )
+                            elif content["data"] is not None:
+                                # Hiển thị hình ảnh đã tải lên trước đó
+                                st.image(
+                                    glib.get_bytesio_from_bytes(content["data"]),
+                                    width=400
                                 )
                 
                 # Add content button
@@ -282,102 +296,117 @@ with col3:
         if process_button:
             with st.spinner("Processing..."):
                 try:
-                    # Display results section
-                    with st.container(border=True):
-                        st.subheader("Result")
-                        
-                        if process_button:
-                            with st.spinner("Processing..."):
-                                try:
-                                    # Prepare data for processing
-                                    is_anthropic_model = "anthropic" in selected_model_id.lower()
-                                    
-                                    # Convert UI messages to API format
-                                    api_messages = []
-                                    for message in st.session_state.messages:
-                                        api_content = []
-                                        
-                                        for content_item in message["content"]:
-                                            if content_item["type"] == "text" and content_item["data"]:
-                                                if is_anthropic_model:
-                                                    api_content.append({
-                                                        "type": "text",
-                                                        "text": content_item["data"]
-                                                    })
-                                                else:  # Nova
-                                                    api_content.append({
-                                                        "text": content_item["data"]
-                                                    })
-                                            elif content_item["type"] == "image" and content_item["data"]:
-                                                image_bytes = content_item["data"]
-                                                image_format = glib.detect_image_format(image_bytes)
-                                                
-                                                if is_anthropic_model:
-                                                    api_content.append({
-                                                        "type": "image",
-                                                        "source": {
-                                                            "type": "base64",
-                                                            "media_type": f"image/{image_format}",
-                                                            "data": glib.base64.b64encode(image_bytes).decode('utf-8')
-                                                        }
-                                                    })
-                                                else:  # Nova
-                                                    api_content.append({
-                                                        "image": {
-                                                            "format": image_format,
-                                                            "source": {
-                                                                "bytes": glib.base64.b64encode(image_bytes).decode('utf-8')
-                                                            }
-                                                        }
-                                                    })
-                                        
-                                        if api_content:  # Only add message if it has content
-                                            api_messages.append({
-                                                "role": message["role"],
-                                                "content": api_content
-                                            })
-                                    
-                                    # Process with the appropriate API
-                                    response = glib.process_conversation(
-                                        messages=api_messages,
-                                        model_id=selected_model_id,
-                                        system_prompt=system_prompt if system_prompt.strip() else None,
-                                        temperature=temperature,
-                                        top_p=top_p,
-                                        top_k=top_k,
-                                        max_tokens=max_tokens
-                                    )
-                                    
-                                    # Display response
-                                    st.markdown("### Model Response")
-                                    st.markdown(response)
-                                    
-                                    # Thêm response vào conversation
-                                    new_message_id = str(uuid.uuid4())
-                                    st.session_state.messages.append({
-                                        "id": new_message_id,
-                                        "role": "assistant",
-                                        "content": [
-                                            {
-                                                "id": str(uuid.uuid4()),
-                                                "type": "text",
-                                                "data": response
-                                            }
-                                        ]
-                                    })
-                                    
-                                except Exception as e:
-                                    logger.error(f"Error during processing: {str(e)}")
-                                    st.error(f"Đã xảy ra lỗi: {str(e)}")
-                                    if "AccessDeniedException" in str(e):
-                                        st.error("Kiểm tra IAM Role có đủ quyền truy cập vào Bedrock API")
-                                    else:
-                                        st.error("Kiểm tra IAM Role có đủ quyền truy cập vào Bedrock Model")
+                    # Validate input - đảm bảo có ít nhất một message có nội dung
+                    valid_messages = False
+                    for msg in st.session_state.messages:
+                        for content in msg["content"]:
+                            if (content["type"] == "text" and content["data"] and content["data"].strip()) or \
+                               (content["type"] == "image" and content["data"] is not None):
+                                valid_messages = True
+                                break
+                        if valid_messages:
+                            break
                     
+                    if not valid_messages:
+                        st.error("Vui lòng thêm nội dung text hoặc image vào ít nhất một message trước khi xử lý.")
+                    else:
+                        # Prepare data for processing
+                        is_anthropic_model = "anthropic" in selected_model_id.lower()
+                        
+                        # Convert UI messages to API format
+                        api_messages = []
+                        for message in st.session_state.messages:
+                            api_content = []
+                            
+                            for content_item in message["content"]:
+                                # Xử lý text content
+                                if content_item["type"] == "text" and content_item["data"] and content_item["data"].strip():
+                                    if is_anthropic_model:
+                                        api_content.append({
+                                            "type": "text",
+                                            "text": content_item["data"].strip()
+                                        })
+                                    else:  # Nova
+                                        api_content.append({
+                                            "text": content_item["data"].strip()
+                                        })
+                                # Xử lý image content
+                                elif content_item["type"] == "image" and content_item["data"] is not None:
+                                    image_bytes = content_item["data"]
+                                    image_format = glib.detect_image_format(image_bytes)
+                                    
+                                    if is_anthropic_model:
+                                        api_content.append({
+                                            "type": "image",
+                                            "source": {
+                                                "type": "base64",
+                                                "media_type": f"image/{image_format}",
+                                                "data": glib.base64.b64encode(image_bytes).decode('utf-8')
+                                            }
+                                        })
+                                    else:  # Nova
+                                        api_content.append({
+                                            "image": {
+                                                "format": image_format,
+                                                "source": {
+                                                    "bytes": glib.base64.b64encode(image_bytes).decode('utf-8')
+                                                }
+                                            }
+                                        })
+                            
+                            # Chỉ thêm message nếu nó có nội dung
+                            if api_content:
+                                api_messages.append({
+                                    "role": message["role"],
+                                    "content": api_content
+                                })
+                        
+                        if not api_messages:
+                            st.error("Không có message hợp lệ nào để xử lý.")
+                        else:
+                            # Process with the appropriate API
+                            response = glib.process_conversation(
+                                messages=api_messages,
+                                model_id=selected_model_id,
+                                system_prompt=system_prompt.strip() if system_prompt and system_prompt.strip() else None,
+                                temperature=temperature,
+                                top_p=top_p,
+                                top_k=top_k,
+                                max_tokens=max_tokens
+                            )
+                            
+                            # Display response
+                            st.markdown("### Model Response")
+                            st.markdown(response)
+                            
+                            # Thông báo thành công
+                            st.success("Xử lý thành công!")
+                
                 except Exception as e:
                     logger.error(f"Error during processing: {str(e)}")
-                    st.error(f"Đã xảy ra lỗi: {str(e)}")
-                    if "AccessDeniedException" in str(e):
+                    error_message = str(e)
+                    
+                    # Chi tiết hơn về lỗi
+                    if "AccessDeniedException" in error_message:
+                        st.error(f"Lỗi quyền truy cập: {error_message}")
                         st.error("Kiểm tra IAM Role có đủ quyền truy cập vào Bedrock API")
+                    elif "ResourceNotFoundException" in error_message:
+                        st.error(f"Model không tìm thấy: {error_message}")
+                        st.error("Kiểm tra model ID và region có chính xác không")
+                    elif "ValidationException" in error_message:
+                        st.error(f"Lỗi định dạng dữ liệu: {error_message}")
+                        st.error("Kiểm tra định dạng dữ liệu input")
+                    elif "ServiceQuotaExceededException" in error_message:
+                        st.error(f"Quá giới hạn quota: {error_message}")
+                        st.error("Liên hệ AWS để tăng quota hoặc thử lại sau")
+                    elif "ThrottlingException" in error_message:
+                        st.error(f"Bị giới hạn tần suất gọi API: {error_message}")
+                        st.error("Hãy thử lại sau một lúc")
                     else:
-                        st.error("Kiểm tra IAM Role có đủ quyền truy cập vào Bedrock Model")
+                        st.error(f"Đã xảy ra lỗi: {error_message}")
+
+
+
+
+
+
