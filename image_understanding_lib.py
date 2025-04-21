@@ -317,7 +317,19 @@ def process_input(prompt_content, model_id, system_prompt=None, image_bytes_list
                 body=json.dumps(payload)
             )
             response_body = json.loads(response['body'].read().decode('utf-8'))
-            return response_body['content'][0]['text']
+            
+            # return response_body['content'][0]['text']
+            
+            # Bảo vệ hơn khi đọc phản hồi từ Claude
+            if 'content' in response_body and len(response_body['content']) > 0:
+                if 'text' in response_body['content'][0]:
+                    return response_body['content'][0]['text']
+                else:
+                    logger.warning("Unexpected Claude response format: missing 'text' in content")
+                    return str(response_body['content'][0])
+            else:
+                logger.warning("Unexpected Claude response format: missing or empty 'content'")
+                return str(response_body)
             
         else:
             # Cấu trúc cho Amazon models (Nova) - sử dụng converse API

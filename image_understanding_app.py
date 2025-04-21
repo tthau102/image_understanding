@@ -217,18 +217,19 @@ with col2:
                         cont_cols = st.columns([2, 3, 1])
                         
                         with cont_cols[0]:
-                            # Determine current content type index
                             current_type_index = 0 if content["type"] == "text" else 1
                             
-                            # Create selectbox for content type
+                            # Phương pháp mới theo dõi sự thay đổi trực tiếp
                             content_type = st.selectbox(
                                 "Content Type",
                                 options=["text", "image"],
                                 index=current_type_index,
-                                key=f"type_{content['id']}",
-                                on_change=update_content_type,
-                                args=(message["id"], content["id"], "text" if st.session_state.get(f"type_{content['id']}") == 0 else "image")
+                                key=f"type_{content['id']}"
                             )
+                            
+                            # Kiểm tra và cập nhật sau khi giá trị đã thay đổi
+                            if content_type != content["type"]:
+                                update_content_type(message["id"], content["id"], content_type)
                         
                         with cont_cols[2]:
                             st.button("🗑️ Delete", key=f"delete_content_{content['id']}", 
