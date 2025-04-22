@@ -104,9 +104,8 @@ with col1:
         st.subheader("System Prompt")
         system_prompt = st.text_area(
             "Enter system instructions:",
-            height=100,
-            help="Instructions that guide the model's behavior.",
-            placeholder="You are an expert at analyzing images. Be concise and detailed in your responses."
+            height=500,
+            help="Instructions that guide the model's behavior."
         )
 
 # Cột 2: Messages và Content
@@ -245,7 +244,7 @@ with col2:
                                 "Text Content",
                                 value=content["data"] if content["data"] is not None else "",
                                 key=f"text_{content['id']}",
-                                height=100
+                                height=500
                             )
                             # Only update if data has changed
                             if text_data != content["data"]:
