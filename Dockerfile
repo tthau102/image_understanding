@@ -8,7 +8,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy source code
 COPY image_understanding_lib.py .
-
 COPY image_understanding_app.py .
 
 # Cấu hình AWS credentials sẽ được mount từ máy host
@@ -16,7 +15,14 @@ COPY image_understanding_app.py .
 # Port mặc định cho Streamlit
 EXPOSE 8080
 
+# Tạo user không phải root
+RUN addgroup --system appgroup && \
+    adduser --system --group appuser && \
+    chown -R appuser:appgroup /app
+
+# Chuyển sang user không phải root
+USER appuser
+
 # Sửa lỗi port và đường dẫn
 ENV PATH="/usr/local/bin:${PATH}"
 CMD ["streamlit", "run", "image_understanding_app.py", "--server.address=0.0.0.0", "--server.port=8080"]
-
