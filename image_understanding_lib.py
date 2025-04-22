@@ -4,14 +4,45 @@ import imghdr
 import logging
 import json
 import base64
+from PIL import Image, ExifTags
+import io
 
 # Thiết lập logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+# def get_bytesio_from_bytes(image_bytes):
+#     """Convert binary image data to BytesIO object."""
+#     return BytesIO(image_bytes)
+
 def get_bytesio_from_bytes(image_bytes):
-    """Convert binary image data to BytesIO object."""
-    return BytesIO(image_bytes)
+    """Convert binary image data to BytesIO object with correct orientation."""
+    image = Image.open(BytesIO(image_bytes))
+    
+    # Xử lý metadata EXIF để xoay ảnh đúng hướng
+    try:
+        for orientation in ExifTags.TAGS.keys():
+            if ExifTags.TAGS[orientation] == 'Orientation':
+                break
+                
+        exif = dict(image._getexif().items())
+        
+        if exif[orientation] == 3:
+            image = image.rotate(180, expand=True)
+        elif exif[orientation] == 6:
+            image = image.rotate(270, expand=True)
+        elif exif[orientation] == 8:
+            image = image.rotate(90, expand=True)
+    except (AttributeError, KeyError, IndexError):
+        # Ảnh không có metadata EXIF hoặc không cần xoay
+        pass
+    
+    # Chuyển ảnh đã xoay về BytesIO
+    output = BytesIO()
+    image.save(output, format=image.format if image.format else 'JPEG')
+    output.seek(0)
+    
+    return output
 
 def get_bytes_from_file(file_path):
     """Read binary data from image file."""

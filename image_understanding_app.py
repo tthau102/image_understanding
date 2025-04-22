@@ -265,13 +265,13 @@ with col2:
                                 # Display preview
                                 st.image(
                                     glib.get_bytesio_from_bytes(image_bytes),
-                                    use_container_width=True
+                                    width=200
                                 )
                             elif content["data"] is not None:
                                 # Hiển thị hình ảnh đã tải lên trước đó
                                 st.image(
                                     glib.get_bytesio_from_bytes(content["data"]),
-                                    use_container_width=True
+                                    width=200
                                 )
                 
                 # Add content button
