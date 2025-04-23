@@ -431,23 +431,25 @@ with col3:
                             )
                             
                             # # Display response
-                            # Thử phát hiện và hiển thị JSON định dạng
-                            try:
-                                # Tìm chuỗi JSON bằng regex
-                                json_matches = re.findall(r'\{.*\}', response, re.DOTALL)
-                                if json_matches:
-                                    for json_str in json_matches:
-                                        try:
-                                            json_obj = json.loads(json_str)
-                                            st.code(json.dumps(json_obj, indent=2, ensure_ascii=False), language="json")
-                                            break  # Chỉ hiển thị JSON đầu tiên tìm thấy
-                                        except:
-                                            continue
-                            except Exception as e:
-                                logger.error(f"Lỗi khi định dạng JSON: {str(e)}")
+                            # # Thử phát hiện và hiển thị JSON định dạng
+                            # try:
+                            #     # Tìm chuỗi JSON bằng regex
+                            #     json_matches = re.findall(r'\{.*\}', response, re.DOTALL)
+                            #     if json_matches:
+                            #         for json_str in json_matches:
+                            #             try:
+                            #                 json_obj = json.loads(json_str)
+                            #                 st.code(json.dumps(json_obj, indent=2, ensure_ascii=False), language="json")
+                            #                 break  # Chỉ hiển thị JSON đầu tiên tìm thấy
+                            #             except:
+                            #                 continue
+                            # except Exception as e:
+                            #     logger.error(f"Lỗi khi định dạng JSON: {str(e)}")
                             
                             # Thông báo thành công
+                            st.write(response)
                             st.success("Xử lý thành công!")
+
                 
                 except Exception as e:
                     logger.error(f"Error during processing: {str(e)}")
