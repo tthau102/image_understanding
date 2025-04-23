@@ -119,17 +119,13 @@ with col1:
         )
         
         # Top K - chỉ hiển thị cho Anthropic model
-        if is_anthropic_model:
-            top_k = st.slider(
-                "Top K",
-                min_value=1,
-                max_value=500,
-                value=glib.CLAUDE_DEFAULT_TOP_K,
-                step=1
-            )
-        else:
-            # Vẫn giữ giá trị cho Nova model nhưng không hiển thị
-            top_k = glib.NOVA_DEFAULT_TOP_K
+        top_k = st.slider(
+            "Top K",
+            min_value=1,
+            max_value=500 if is_anthropic_model else 128,
+            value=glib.CLAUDE_DEFAULT_TOP_K if is_anthropic_model else glib.NOVA_DEFAULT_TOP_K,
+            step=1
+        )
         
         # Max Tokens - hiển thị cho cả hai loại model
         max_tokens = st.slider(
