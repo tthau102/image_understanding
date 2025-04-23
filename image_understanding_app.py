@@ -168,6 +168,10 @@ with col2:
         def update_content_type(message_id, content_id, content_type):
             for i, msg in enumerate(st.session_state.messages):
                 if msg["id"] == message_id:
+                    # Nếu role là assistant, không cho phép thay đổi content type
+                    if msg["role"] == "assistant":
+                        return
+                        
                     for j, content in enumerate(msg["content"]):
                         if content["id"] == content_id:
                             if st.session_state.messages[i]["content"][j]["type"] != content_type:
@@ -184,7 +188,16 @@ with col2:
         def update_message_role(message_id, role):
             for i, msg in enumerate(st.session_state.messages):
                 if msg["id"] == message_id:
+                    # Không cho phép thay đổi role của message đầu tiên
+                    if i == 0:
+                        return
                     st.session_state.messages[i]["role"] = role
+                    # Nếu role là assistant, đảm bảo tất cả content type là text
+                    if role == "assistant":
+                        for j, content in enumerate(st.session_state.messages[i]["content"]):
+                            if content["type"] != "text":
+                                st.session_state.messages[i]["content"][j]["type"] = "text"
+                                st.session_state.messages[i]["content"][j]["data"] = ""
                     break
         
         # Display all messages
@@ -196,21 +209,25 @@ with col2:
                 # Message header with role selector and delete button
                 cols = st.columns([2, 3, 1.5])
                 with cols[0]:
-                    current_role_index = 0 if message["role"] == "user" else 1
-                    new_role = st.selectbox(
-                        "Role",
-                        options=["user", "assistant"],
-                        index=current_role_index,
-                        key=f"role_{message['id']}"
-                    )
-                    
-                    # Check and update if role has changed
-                    if new_role != message["role"]:
-                        update_message_role(message["id"], new_role)
+                    if msg_idx == 0:  # Message đầu tiên
+                        st.text("Role: user")  # Chỉ hiển thị text, không cho phép thay đổi
+                    else:
+                        current_role_index = 0 if message["role"] == "user" else 1
+                        new_role = st.selectbox(
+                            "Role",
+                            options=["user", "assistant"],
+                            index=current_role_index,
+                            key=f"role_{message['id']}"
+                        )
+                        
+                        # Check and update if role has changed
+                        if new_role != message["role"]:
+                            update_message_role(message["id"], new_role)
                 
                 with cols[2]:
-                    st.button("🗑️ Delete Message", key=f"delete_msg_{message['id']}", 
-                             on_click=delete_message, args=(message["id"],))
+                    if msg_idx > 0:  # Chỉ hiển thị nút xóa cho message không phải đầu tiên
+                        st.button("🗑️ Delete Message", key=f"delete_msg_{message['id']}", 
+                                on_click=delete_message, args=(message["id"],))
                 
                 # Display all content items in this message
                 st.markdown(f"##### Content Items ({len(message['content'])})")
@@ -220,19 +237,23 @@ with col2:
                         st.markdown(f"**Item {content_idx+1}**")
                         # Content item header
                         cont_cols = st.columns([2, 3, 1])
-                        
+                                                
                         with cont_cols[0]:
-                            current_type_index = 0 if content["type"] == "text" else 1
-                            content_type = st.selectbox(
-                                "Content Type",
-                                options=["text", "image"],
-                                index=current_type_index,
-                                key=f"type_{content['id']}"
-                            )
-                            
-                            # Check if content type has changed
-                            if content_type != content["type"]:
-                                update_content_type(message["id"], content["id"], content_type)
+                            if message["role"] == "assistant":
+                                # Nếu role là assistant, content type phải là text
+                                st.text("Content Type: text")
+                            else:
+                                current_type_index = 0 if content["type"] == "text" else 1
+                                content_type = st.selectbox(
+                                    "Content Type",
+                                    options=["text", "image"],
+                                    index=current_type_index,
+                                    key=f"type_{content['id']}"
+                                )
+                                
+                                # Check if content type has changed
+                                if content_type != content["type"]:
+                                    update_content_type(message["id"], content["id"], content_type)
                         
                         with cont_cols[2]:
                             st.button("🗑️ Delete", key=f"delete_content_{content['id']}", 
