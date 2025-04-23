@@ -77,7 +77,7 @@ if "messages" not in st.session_state:
     ]
 
 # Chia layout thành 3 cột
-col1, col2, col3 = st.columns([2, 3, 2])
+col1, col2, col3 = st.columns([1.5 , 3, 2.5])
 
 # Cột 1: Cấu hình model và parameters
 with col1:
@@ -95,10 +95,50 @@ with col1:
     with st.container(border=True):
         st.subheader("Inference Parameters")
         
-        temperature = st.slider("Temperature", min_value=0.0, max_value=1.0, value=0.0, step=0.1, format='%.1f')
-        top_p = st.slider("Top P", min_value=0.1, max_value=1.0, value=0.7, step=0.1, format='%.1f')
-        top_k = st.slider("Top K", min_value=1, max_value=500, value=45, step=1)
-        max_tokens = st.slider("Max Tokens", min_value=100, max_value=4000, value=3000, step=100)
+        # Xác định loại model
+        is_anthropic_model = "anthropic" in selected_model_id.lower()
+        
+        # Temperature - hiển thị cho cả hai loại model
+        temperature = st.slider(
+            "Temperature",
+            min_value=0.0,
+            max_value=1.0,
+            value=glib.CLAUDE_DEFAULT_TEMPERATURE if is_anthropic_model else glib.NOVA_DEFAULT_TEMPERATURE,
+            step=0.1,
+            format='%.1f'
+        )
+        
+        # Top P - hiển thị cho cả hai loại model nhưng với các tham số khác nhau
+        top_p = st.slider(
+            "Top P",
+            min_value=0.1,
+            max_value=1.0,
+            value=glib.CLAUDE_DEFAULT_TOP_P if is_anthropic_model else glib.NOVA_DEFAULT_TOP_P,
+            step=0.001 if is_anthropic_model else 0.1,
+            format='%.3f' if is_anthropic_model else '%.1f'
+        )
+        
+        # Top K - chỉ hiển thị cho Anthropic model
+        if is_anthropic_model:
+            top_k = st.slider(
+                "Top K",
+                min_value=1,
+                max_value=500,
+                value=glib.CLAUDE_DEFAULT_TOP_K,
+                step=1
+            )
+        else:
+            # Vẫn giữ giá trị cho Nova model nhưng không hiển thị
+            top_k = glib.NOVA_DEFAULT_TOP_K
+        
+        # Max Tokens - hiển thị cho cả hai loại model
+        max_tokens = st.slider(
+            "Max Tokens",
+            min_value=100,
+            max_value=4000,
+            value=glib.CLAUDE_DEFAULT_MAX_TOKENS if is_anthropic_model else glib.NOVA_DEFAULT_MAX_TOKENS,
+            step=100
+        )
     
     with st.container(border=True):
         st.subheader("System Prompt")

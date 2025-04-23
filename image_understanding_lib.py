@@ -7,6 +7,19 @@ import base64
 from PIL import Image, ExifTags
 import io
 
+# Default parameters cho các model
+# Nova models
+NOVA_DEFAULT_TEMPERATURE = 0.1
+NOVA_DEFAULT_TOP_P = 0.9
+NOVA_DEFAULT_TOP_K = 128  # Giá trị mặc định nhưng không hiển thị trong UI
+NOVA_DEFAULT_MAX_TOKENS = 2000
+
+# Claude models
+CLAUDE_DEFAULT_TEMPERATURE = 0.1
+CLAUDE_DEFAULT_TOP_P = 0.999
+CLAUDE_DEFAULT_TOP_K = 250
+CLAUDE_DEFAULT_MAX_TOKENS = 2000
+
 # Thiết lập logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -55,7 +68,7 @@ def detect_image_format(image_bytes):
     return format or "jpeg"  # Default to jpeg if detection fails
 
 def process_conversation(messages, model_id, system_prompt=None, 
-                        temperature=0.0, top_p=0.9, top_k=45, max_tokens=2000):
+                        temperature=None, top_p=None, top_k=None, max_tokens=None):
     """
     Xử lý hội thoại với nhiều message với format giống API
     
@@ -63,7 +76,7 @@ def process_conversation(messages, model_id, system_prompt=None,
         messages: List of message objects with role and content array
         model_id: ID của model Bedrock
         system_prompt: System prompt (optional)
-        temperature, top_p, max_tokens: Parameters cho model
+        temperature, top_p, top_k, max_tokens: Parameters cho model (nếu None sẽ dùng giá trị mặc định)
     
     Returns:
         Phản hồi từ model
@@ -83,6 +96,19 @@ def process_conversation(messages, model_id, system_prompt=None,
         
         # Xác định loại model
         is_anthropic_model = "anthropic" in model_id.lower()
+        
+        # Sử dụng giá trị mặc định dựa vào loại model nếu không có giá trị truyền vào
+        if temperature is None:
+            temperature = CLAUDE_DEFAULT_TEMPERATURE if is_anthropic_model else NOVA_DEFAULT_TEMPERATURE
+        
+        if top_p is None:
+            top_p = CLAUDE_DEFAULT_TOP_P if is_anthropic_model else NOVA_DEFAULT_TOP_P
+        
+        if top_k is None:
+            top_k = CLAUDE_DEFAULT_TOP_K if is_anthropic_model else NOVA_DEFAULT_TOP_K
+            
+        if max_tokens is None:
+            max_tokens = CLAUDE_DEFAULT_MAX_TOKENS if is_anthropic_model else NOVA_DEFAULT_MAX_TOKENS
         
         if is_anthropic_model:
             # Cấu trúc cho Anthropic Claude models
@@ -191,7 +217,7 @@ def process_conversation(messages, model_id, system_prompt=None,
         raise
 
 def process_input_multi_image_prompt(image_bytes_list, prompt_list, model_id, system_prompt=None, 
-                             temperature=0.0, top_p=0.9, top_k=45, max_tokens=2000):
+                             temperature=None, top_p=None, top_k=None, max_tokens=None):
     """
     Xử lý input với nhiều cặp ảnh-prompt theo thứ tự xen kẽ image1, prompt1, image2, prompt2
     
@@ -200,7 +226,7 @@ def process_input_multi_image_prompt(image_bytes_list, prompt_list, model_id, sy
         prompt_list: List of prompt texts corresponding to images
         model_id: ID của model Bedrock
         system_prompt: System prompt (optional)
-        temperature, top_p, max_tokens: Parameters cho model
+        temperature, top_p, top_k, max_tokens: Parameters cho model (nếu None sẽ dùng giá trị mặc định)
     
     Returns:
         Phản hồi từ model
@@ -211,6 +237,19 @@ def process_input_multi_image_prompt(image_bytes_list, prompt_list, model_id, sy
         
         # Xác định loại model
         is_anthropic_model = "anthropic" in model_id.lower()
+        
+        # Sử dụng giá trị mặc định dựa vào loại model nếu không có giá trị truyền vào
+        if temperature is None:
+            temperature = CLAUDE_DEFAULT_TEMPERATURE if is_anthropic_model else NOVA_DEFAULT_TEMPERATURE
+        
+        if top_p is None:
+            top_p = CLAUDE_DEFAULT_TOP_P if is_anthropic_model else NOVA_DEFAULT_TOP_P
+        
+        if top_k is None:
+            top_k = CLAUDE_DEFAULT_TOP_K if is_anthropic_model else NOVA_DEFAULT_TOP_K
+            
+        if max_tokens is None:
+            max_tokens = CLAUDE_DEFAULT_MAX_TOKENS if is_anthropic_model else NOVA_DEFAULT_MAX_TOKENS
         
         if is_anthropic_model:
             # Cấu trúc cho Anthropic Claude models
@@ -334,7 +373,7 @@ def process_input_multi_image_prompt(image_bytes_list, prompt_list, model_id, sy
 
 # Original process_input function kept for backward compatibility
 def process_input(prompt_content, model_id, system_prompt=None, image_bytes_list=None, 
-                 temperature=0.0, top_p=0.9, max_tokens=2000):
+                 temperature=None, top_p=None, top_k=None, max_tokens=None):
     """
     Xử lý input (text và/hoặc nhiều images) với model Bedrock.
     
@@ -343,7 +382,7 @@ def process_input(prompt_content, model_id, system_prompt=None, image_bytes_list
         model_id: ID của model Bedrock
         system_prompt: System prompt (optional)
         image_bytes_list: List of binary image data (optional) - có thể là một ảnh hoặc list ảnh
-        temperature, top_p, max_tokens: Parameters cho model
+        temperature, top_p, top_k, max_tokens: Parameters cho model (nếu None sẽ dùng giá trị mặc định)
     
     Returns:
         Phản hồi từ model
@@ -358,6 +397,19 @@ def process_input(prompt_content, model_id, system_prompt=None, image_bytes_list
         
         # Xác định loại model
         is_anthropic_model = "anthropic" in model_id.lower()
+        
+        # Sử dụng giá trị mặc định dựa vào loại model nếu không có giá trị truyền vào
+        if temperature is None:
+            temperature = CLAUDE_DEFAULT_TEMPERATURE if is_anthropic_model else NOVA_DEFAULT_TEMPERATURE
+        
+        if top_p is None:
+            top_p = CLAUDE_DEFAULT_TOP_P if is_anthropic_model else NOVA_DEFAULT_TOP_P
+        
+        if top_k is None:
+            top_k = CLAUDE_DEFAULT_TOP_K if is_anthropic_model else NOVA_DEFAULT_TOP_K
+            
+        if max_tokens is None:
+            max_tokens = CLAUDE_DEFAULT_MAX_TOKENS if is_anthropic_model else NOVA_DEFAULT_MAX_TOKENS
         
         if is_anthropic_model:
             # Cấu trúc cho Anthropic Claude models
@@ -491,27 +543,27 @@ def process_input(prompt_content, model_id, system_prompt=None, image_bytes_list
 
 # Legacy wrapper functions for backward compatibility
 def get_response_from_model(prompt_content, image_bytes, model_id="anthropic.claude-3-5-sonnet-20240620-v1:0", 
-                           temperature=0.0, top_p=0.9, max_tokens=2000):
+                           temperature=None, top_p=None, max_tokens=None):
     """Process image and text input using Bedrock model (Legacy wrapper)."""
     return process_input(prompt_content, model_id, image_bytes_list=image_bytes,
                         temperature=temperature, top_p=top_p, max_tokens=max_tokens)
 
 def get_response_from_model_with_system(prompt_content, image_bytes, system_prompt, 
                                        model_id="anthropic.claude-3-5-sonnet-20240620-v1:0", 
-                                       temperature=0.0, top_p=0.9, max_tokens=2000):
+                                       temperature=None, top_p=None, max_tokens=None):
     """Process image and text input with system prompt (Legacy wrapper)."""
     return process_input(prompt_content, model_id, system_prompt=system_prompt, 
                         image_bytes_list=image_bytes, temperature=temperature, 
                         top_p=top_p, max_tokens=max_tokens)
 
 def get_text_response(prompt_content, model_id="anthropic.claude-3-5-sonnet-20240620-v1:0", 
-                     temperature=0.0, top_p=0.9, max_tokens=2000):
+                     temperature=None, top_p=None, max_tokens=None):
     """Process text-only input (Legacy wrapper)."""
     return process_input(prompt_content, model_id, temperature=temperature, 
                         top_p=top_p, max_tokens=max_tokens)
 
 def get_text_response_with_system(prompt_content, system_prompt, model_id="anthropic.claude-3-5-sonnet-20240620-v1:0", 
-                                temperature=0.0, top_p=0.9, max_tokens=2000):
+                                temperature=None, top_p=None, max_tokens=None):
     """Process text input with system prompt (Legacy wrapper)."""
     return process_input(prompt_content, model_id, system_prompt=system_prompt,
                         temperature=temperature, top_p=top_p, max_tokens=max_tokens)
