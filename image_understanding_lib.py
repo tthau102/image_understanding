@@ -111,8 +111,7 @@ def process_conversation(messages, model_id, system_prompt=None,
         
         # Xác định loại model
         is_anthropic_model = "anthropic" in model_id.lower()
-        
-        # Phần code còn lại giữ nguyên
+                
         # Sử dụng giá trị mặc định dựa vào loại model nếu không có giá trị truyền vào
         if temperature is None:
             temperature = CLAUDE_DEFAULT_TEMPERATURE if is_anthropic_model else NOVA_DEFAULT_TEMPERATURE
@@ -393,7 +392,6 @@ def process_input_multi_image_prompt(image_bytes_list, prompt_list, model_id, sy
         raise
 
 # Original process_input function kept for backward compatibility
-
 def process_input(prompt_content, model_id, system_prompt=None, image_bytes_list=None, 
                  temperature=None, top_p=None, top_k=None, max_tokens=None):
     """
