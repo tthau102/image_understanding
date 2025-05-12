@@ -7,6 +7,17 @@ import base64
 from PIL import Image, ExifTags
 import io
 
+# Thêm hàm xác định region từ model ID
+def get_region_from_model_id(model_id):
+    """Xác định region dựa vào prefix của model ID"""
+    if model_id.startswith("us."):
+        return "us-east-1"  # Region US cho US models
+    elif model_id.startswith("apac."):
+        return "ap-southeast-1"  # Region Singapore cho APAC models
+    else:
+        # Default region
+        return "ap-southeast-1"
+
 # Default parameters cho các model
 # Nova models
 NOVA_DEFAULT_TEMPERATURE = 0.1
@@ -90,13 +101,18 @@ def process_conversation(messages, model_id, system_prompt=None,
         logger.info(f"Processing with model: {model_id}")
         logger.info(f"Number of messages: {len(messages)}")
         
-        # Tạo session và client
-        session = boto3.Session()
+        # Xác định region từ model_id
+        region = get_region_from_model_id(model_id)
+        logger.info(f"Using region: {region} for model {model_id}")
+        
+        # Tạo session và client với region tương ứng
+        session = boto3.Session(region_name=region)
         bedrock = session.client(service_name='bedrock-runtime')
         
         # Xác định loại model
         is_anthropic_model = "anthropic" in model_id.lower()
         
+        # Phần code còn lại giữ nguyên
         # Sử dụng giá trị mặc định dựa vào loại model nếu không có giá trị truyền vào
         if temperature is None:
             temperature = CLAUDE_DEFAULT_TEMPERATURE if is_anthropic_model else NOVA_DEFAULT_TEMPERATURE
@@ -232,7 +248,12 @@ def process_input_multi_image_prompt(image_bytes_list, prompt_list, model_id, sy
         Phản hồi từ model
     """
     try:
-        session = boto3.Session()
+        # Xác định region từ model_id
+        region = get_region_from_model_id(model_id)
+        logger.info(f"Using region: {region} for model {model_id}")
+        
+        # Tạo session và client với region tương ứng
+        session = boto3.Session(region_name=region)
         bedrock = session.client(service_name='bedrock-runtime')
         
         # Xác định loại model
@@ -372,6 +393,7 @@ def process_input_multi_image_prompt(image_bytes_list, prompt_list, model_id, sy
         raise
 
 # Original process_input function kept for backward compatibility
+
 def process_input(prompt_content, model_id, system_prompt=None, image_bytes_list=None, 
                  temperature=None, top_p=None, top_k=None, max_tokens=None):
     """
@@ -388,7 +410,12 @@ def process_input(prompt_content, model_id, system_prompt=None, image_bytes_list
         Phản hồi từ model
     """
     try:
-        session = boto3.Session()
+        # Xác định region từ model_id
+        region = get_region_from_model_id(model_id)
+        logger.info(f"Using region: {region} for model {model_id}")
+        
+        # Tạo session và client với region tương ứng
+        session = boto3.Session(region_name=region)
         bedrock = session.client(service_name='bedrock-runtime')
         
         # Đảm bảo image_bytes_list là một list để xử lý đồng nhất
