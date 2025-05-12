@@ -56,9 +56,9 @@ st.markdown("""
 # Dictionary chứa các model options
 model_options_dict = {
     "Amazon Nova Premier": "us.amazon.nova-premier-v1:0",
-    "Amazon Nova Pro": "us.amazon.nova-pro-v1:0",
-    "Amazon Nova Lite": "us.amazon.nova-lite-v1:0",
-    "Claude 3.5 Sonnet v2": "us.anthropic.claude-3-5-sonnet-20241022-v2:0"
+    "Amazon Nova Pro": "apac.amazon.nova-pro-v1:0",
+    "Amazon Nova Lite": "apac.amazon.nova-lite-v1:0",
+    "Claude 3.5 Sonnet v2": "apac.anthropic.claude-3-5-sonnet-20241022-v2:0"
 }
 
 # Initialize session state
