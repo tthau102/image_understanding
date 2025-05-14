@@ -55,6 +55,10 @@ st.markdown("""
 
 # Dictionary chứa các model options
 model_options_dict = {
+    "Claude 3.7 Sonnet": "us.anthropic.claude-3-7-sonnet-20250219-v1:0",
+    "Pixtral Large (25.02)": "mistral.pixtral-large-2502-v1:0",
+    "Llama 4 Scout 17B Instruct": "us.meta.llama4-scout-17b-instruct-v1:0",
+    "Claude 3 Opus": "us.anthropic.claude-3-opus-20240229-v1:0",
     "Amazon Nova Premier": "us.amazon.nova-premier-v1:0",
     "Amazon Nova Pro": "apac.amazon.nova-pro-v1:0",
     "Amazon Nova Lite": "apac.amazon.nova-lite-v1:0",
@@ -92,9 +96,6 @@ with col1:
             index=0,
         )
         selected_model_id = model_options_dict[model_selection]
-
-    with st.container(border=True):
-        st.subheader("Inference Parameters")
         
         # Xác định loại model
         is_anthropic_model = "anthropic" in selected_model_id.lower()
