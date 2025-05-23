@@ -6,6 +6,7 @@ import logging
 import uuid
 import os
 from dotenv import load_dotenv
+import base64
 
 # Load environment variables
 load_dotenv()
@@ -67,6 +68,7 @@ model_options_dict = {
 }
 
 # Initialize session state
+# Sửa phần khởi tạo session state
 if "messages" not in st.session_state:
     st.session_state.messages = [
         {
@@ -75,8 +77,8 @@ if "messages" not in st.session_state:
             "content": [
                 {
                     "id": str(uuid.uuid4()),
-                    "type": "text",
-                    "data": ""
+                    "type": "image" if st.session_state.get("enable_rag", False) else "text",
+                    "data": None if st.session_state.get("enable_rag", False) else ""
                 }
             ]
         }
@@ -106,6 +108,7 @@ with col1:
             enable_rag = st.checkbox("Enable RAG Mode", key="enable_rag")
             
             if enable_rag:
+                st.info("📸 RAG Mode requires uploading an image in Messages section")
                 # Database selector với config từ .env
                 db_options = {
                     "Planogram DB (Default)": {
@@ -197,6 +200,10 @@ with col1:
 with col2:
     with st.container(border=True):
         st.subheader("Messages")
+        
+        # Thêm hướng dẫn khi RAG mode
+        if st.session_state.get("enable_rag", False):
+            st.warning("⚠️ RAG Mode Active: Please upload an image to start")
 
         def create_rag_messages(best_match):
             """Create message structure for RAG"""
@@ -426,32 +433,45 @@ with col2:
                                 key=f"image_{content['id']}"
                             )
                             
+                            # Sửa phần upload image trong Messages
                             if uploaded_file:
-                                image_bytes = uploaded_file.getvalue()
-                                update_content_data(message["id"], content["id"], image_bytes)
-                                
-                                # RAG auto-fill khi upload image
-                                if st.session_state.get("enable_rag", False):
-                                    with st.spinner("Finding similar images..."):
-                                        try:
-                                            # Get embedding
-                                            embedding, base64_img = glib.get_image_embedding(image_bytes)
-                                            
-                                            # Query similar images
-                                            results = glib.query_similar_images(
-                                                embedding, 
-                                                st.session_state.db_config
-                                            )
-                                            
-                                            if results and results[0][3] <= 0.1:  # High similarity
-                                                # Auto-create RAG messages
-                                                create_rag_messages(results[0])
-                                                st.success("RAG messages created!")
-                                                st.rerun()
-                                            
-                                        except Exception as e:
-                                            st.error(f"RAG error: {str(e)}")
-                
+                                try:
+                                    image_bytes = uploaded_file.getvalue()
+                                    update_content_data(message["id"], content["id"], image_bytes)
+                                    
+                                    # RAG auto-fill khi upload image
+                                    if st.session_state.get("enable_rag", False) and st.session_state.get("db_config"):
+                                        with st.spinner("Finding similar images..."):
+                                            try:
+                                                # Import check
+                                                import image_understanding_lib as glib
+                                                
+                                                # Get embedding
+                                                embedding, base64_img = glib.get_image_embedding(image_bytes)
+                                                
+                                                # Query similar images
+                                                results = glib.query_similar_images(
+                                                    embedding, 
+                                                    st.session_state.db_config
+                                                )
+                                                
+                                                if results and results[0][3] <= 0.1:  # High similarity
+                                                    # Auto-create RAG messages
+                                                    create_rag_messages(results[0])
+                                                    st.success("✅ RAG messages created successfully!")
+                                                    st.rerun()
+                                                else:
+                                                    st.warning("⚠️ No similar images found in database")
+                                                    
+                                            except ImportError as e:
+                                                st.error(f"Import error: {str(e)}")
+                                            except Exception as e:
+                                                st.error(f"RAG error: {str(e)}")
+                                                logger.error(f"RAG processing failed: {str(e)}", exc_info=True)
+                                                
+                                except Exception as e:
+                                    st.error(f"File upload error: {str(e)}")  
+                                              
                 # Add content button
                 st.button("➕ Add Content Item", key=f"add_content_{message['id']}", 
                          on_click=add_content_item, args=(message["id"],), use_container_width=False)
