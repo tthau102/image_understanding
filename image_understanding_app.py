@@ -84,6 +84,36 @@ if "messages" not in st.session_state:
         }
     ]
 
+if "rag_processing" not in st.session_state:
+    st.session_state.rag_processing = False
+
+if "rag_system_prompt" not in st.session_state:
+    st.session_state.rag_system_prompt = None
+
+# THÊM cleanup function
+def on_rag_toggle():
+    if not st.session_state.enable_rag:
+        # Clear RAG-related data
+        if "rag_processing" in st.session_state:
+            del st.session_state.rag_processing
+        if "rag_system_prompt" in st.session_state:
+            del st.session_state.rag_system_prompt
+        
+        # Reset messages to default
+        st.session_state.messages = [
+            {
+                "id": str(uuid.uuid4()),
+                "role": "user",
+                "content": [
+                    {
+                        "id": str(uuid.uuid4()),
+                        "type": "text",
+                        "data": ""
+                    }
+                ]
+            }
+        ]
+
 # Chia layout thành 3 cột
 col1, col2, col3 = st.columns([1.5 , 3, 2.5])
 
@@ -106,6 +136,13 @@ with col1:
             
             # RAG checkbox
             enable_rag = st.checkbox("Enable RAG Mode", key="enable_rag")
+
+            # THAY BẰNG:
+            enable_rag = st.checkbox(
+                "Enable RAG Mode", 
+                key="enable_rag",
+                on_change=on_rag_toggle  # ← THÊM callback
+            )
             
             if enable_rag:
                 st.info("📸 RAG Mode requires uploading an image in Messages section")
@@ -188,13 +225,26 @@ with col1:
             step=100
         )
     
-    with st.container(border=True):
-        st.subheader("System Prompt")
-        system_prompt = st.text_area(
-            "Enter system instructions:",
-            height=500,
-            help="Instructions that guide the model's behavior."
-        )
+        with st.container(border=True):
+            st.subheader("System Prompt")
+            
+            # Check if RAG system prompt exists
+            if st.session_state.get("rag_system_prompt"):
+                system_prompt = st.text_area(
+                    "Enter system instructions:",
+                    value=st.session_state.rag_system_prompt,
+                    height=500,
+                    help="Auto-filled from RAG mode",
+                    key="system_prompt_area"
+                )
+            else:
+                system_prompt = st.text_area(
+                    "Enter system instructions:",
+                    height=500,
+                    help="Instructions that guide the model's behavior.",
+                    key="system_prompt_area"
+                )
+
 
 # Cột 2: Messages và Content
 with col2:
@@ -205,70 +255,6 @@ with col2:
         if st.session_state.get("enable_rag", False):
             st.warning("⚠️ RAG Mode Active: Please upload an image to start")
 
-        def create_rag_messages(best_match):
-            """Create message structure for RAG"""
-            description, ref_base64, inventory, distance = best_match
-            
-            # Clear existing messages except first
-            st.session_state.messages = [st.session_state.messages[0]]
-            
-            # Add system message
-            system_content = """## Task
-        You are a Planogram Specialist for Uniben, a beverage company. Your task is to evaluate the planograms (product placement) in refrigerators containing Uniben's beverage products."""
-            
-            # Update system prompt in col1
-            # (This needs to be handled via session state)
-            
-            # Add instruction message
-            st.session_state.messages.append({
-                "id": str(uuid.uuid4()),
-                "role": "user",
-                "content": [{
-                    "id": str(uuid.uuid4()),
-                    "type": "text",
-                    "data": """## Instructions
-        Review the provided information about Uniben's beverage products:
-        ### Uniben's Beverage Products
-        - The refrigerator is yellow.
-        - Yellow bottle with yellow cap is Boncha...
-        [full instruction text]"""
-                }]
-            })
-            
-            # Add reference image
-            st.session_state.messages.append({
-                "id": str(uuid.uuid4()),
-                "role": "user",
-                "content": [{
-                    "id": str(uuid.uuid4()),
-                    "type": "image",
-                    "data": base64.b64decode(ref_base64)
-                }]
-            })
-            
-            # Add inventory response
-            st.session_state.messages.append({
-                "id": str(uuid.uuid4()),
-                "role": "assistant",
-                "content": [{
-                    "id": str(uuid.uuid4()),
-                    "type": "text",
-                    "data": inventory
-                }]
-            })
-            
-            # Final message already has the uploaded image
-            # Just add the evaluation prompt
-            for msg in st.session_state.messages:
-                if msg["role"] == "user" and any(c["type"] == "image" for c in msg["content"]):
-                    msg["content"].append({
-                        "id": str(uuid.uuid4()),
-                        "type": "text",
-                        "data": """### Output Format
-        The last refrigerator is the one you need to evaluate. Only give me back the response with the format like before, count from the bottom shelf to top, do not give me anything else."""
-                    })
-                    break
-        
         # Function to add a new content item to a message
         def add_content_item(message_id):
             for i, msg in enumerate(st.session_state.messages):
@@ -356,6 +342,92 @@ with col2:
                                 st.session_state.messages[i]["content"][j]["data"] = ""
                     break
         
+        def create_rag_messages(best_match):
+            """Create message structure for RAG - REPLACE entire messages"""
+            description, ref_base64, inventory, distance = best_match
+            
+            # Lưu lại uploaded image từ message cũ
+            uploaded_image = None
+            for msg in st.session_state.messages:
+                for content in msg["content"]:
+                    if content["type"] == "image" and content["data"]:
+                        uploaded_image = content["data"]
+                        break
+                if uploaded_image:
+                    break
+            
+            # REPLACE toàn bộ messages với structure mới
+            new_messages = []
+            
+            # Message 1: User uploaded image + output format
+            new_messages.append({
+                "id": str(uuid.uuid4()),
+                "role": "user",
+                "content": [
+                    {
+                        "id": str(uuid.uuid4()),
+                        "type": "image",
+                        "data": uploaded_image
+                    },
+                    {
+                        "id": str(uuid.uuid4()),
+                        "type": "text",
+                        "data": """### Output Format
+        The last refrigerator is the one you need to evaluate. Only give me back the response with the format like before, count from the bottom shelf to top, do not give me anything else."""
+                    }
+                ]
+            })
+            
+            # Message 2: Instructions
+            new_messages.append({
+                "id": str(uuid.uuid4()),
+                "role": "user",
+                "content": [{
+                    "id": str(uuid.uuid4()),
+                    "type": "text",
+                    "data": """## Instructions
+        Review the provided information about Uniben's beverage products:
+        ### Uniben's Beverage Products
+        - The refrigerator is yellow.
+        - Yellow bottle with yellow cap is Boncha, usually can only have a maximum of 8 bottles on one shelf. 
+        - Blue, orange or red bottle with black cap is Abben, usually can only have a maximum of 9 bottles on one shelf. 
+        - White or purple bottle with white cap is Joco Milk, usually can only have a maximum of 9 bottles on one shelf. 
+        - Red or purple bottle with red cap is Joco Fruit, usually can only have a maximum of 8 bottles on one shelf.
+
+        You will receive a picture of a refrigerator containing Uniben's beverage products, tell me the quantity of products on each shelf."""
+                }]
+            })
+            
+            # Message 3: Reference image
+            new_messages.append({
+                "id": str(uuid.uuid4()),
+                "role": "user",
+                "content": [{
+                    "id": str(uuid.uuid4()),
+                    "type": "image",
+                    "data": base64.b64decode(ref_base64)
+                }]
+            })
+            
+            # Message 4: Assistant inventory response
+            new_messages.append({
+                "id": str(uuid.uuid4()),
+                "role": "assistant",
+                "content": [{
+                    "id": str(uuid.uuid4()),
+                    "type": "text",
+                    "data": inventory
+                }]
+            })
+            
+            # Update session state với messages mới
+            st.session_state.messages = new_messages
+            
+            # Update system prompt
+            st.session_state.rag_system_prompt = """## Task
+        You are a Planogram Specialist for Uniben, a beverage company. Your task is to evaluate the planograms (product placement) in refrigerators containing Uniben's beverage products."""
+
+
         # Display all messages
         for msg_idx, message in enumerate(st.session_state.messages):
             # Create message container with appropriate styling based on role
@@ -439,8 +511,14 @@ with col2:
                                     image_bytes = uploaded_file.getvalue()
                                     update_content_data(message["id"], content["id"], image_bytes)
                                     
-                                    # RAG auto-fill khi upload image
-                                    if st.session_state.get("enable_rag", False) and st.session_state.get("db_config"):
+                                    # Check flag để tránh loop
+                                    if (st.session_state.get("enable_rag", False) and 
+                                        st.session_state.get("db_config") and 
+                                        not st.session_state.rag_processing):
+                                        
+                                        # Set flag
+                                        st.session_state.rag_processing = True
+                                        
                                         with st.spinner("Finding similar images..."):
                                             try:
                                                 # Import check
@@ -452,26 +530,33 @@ with col2:
                                                 # Query similar images
                                                 results = glib.query_similar_images(
                                                     embedding, 
-                                                    st.session_state.db_config
+                                                    st.session_state.db_config,
+                                                    limit=1  # Chỉ lấy 1 kết quả tốt nhất
                                                 )
                                                 
-                                                if results and results[0][3] <= 0.1:  # High similarity
-                                                    # Auto-create RAG messages
+                                                if results and results[0][3] <= 0.3:  # Threshold
+                                                    # Create RAG messages
                                                     create_rag_messages(results[0])
-                                                    st.success("✅ RAG messages created successfully!")
+                                                    st.success("✅ RAG messages created!")
+                                                    
+                                                    # Reset flag trước khi rerun
+                                                    st.session_state.rag_processing = False
                                                     st.rerun()
                                                 else:
-                                                    st.warning("⚠️ No similar images found in database")
+                                                    st.warning("⚠️ No similar images found")
+                                                    st.session_state.rag_processing = False
                                                     
                                             except ImportError as e:
                                                 st.error(f"Import error: {str(e)}")
+                                                st.session_state.rag_processing = False
                                             except Exception as e:
                                                 st.error(f"RAG error: {str(e)}")
                                                 logger.error(f"RAG processing failed: {str(e)}", exc_info=True)
+                                                st.session_state.rag_processing = False
                                                 
                                 except Exception as e:
-                                    st.error(f"File upload error: {str(e)}")  
-                                              
+                                    st.error(f"File upload error: {str(e)}")
+
                 # Add content button
                 st.button("➕ Add Content Item", key=f"add_content_{message['id']}", 
                          on_click=add_content_item, args=(message["id"],), use_container_width=False)
