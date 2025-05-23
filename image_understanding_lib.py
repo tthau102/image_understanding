@@ -7,6 +7,66 @@ import base64
 from PIL import Image, ExifTags
 import io
 
+import psycopg2
+from typing import List, Tuple
+import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+# Constants từ .env
+RAG_EMBEDDING_REGION = os.getenv("RAG_EMBEDDING_REGION")
+RAG_TABLE_NAME = os.getenv("RAG_TABLE_NAME")
+RAG_EMBEDDING_MODEL = os.getenv("RAG_EMBEDDING_MODEL")
+
+# Update function get_image_embedding
+def get_image_embedding(image_bytes, region=None):
+    """Generate embedding for image using Titan"""
+    # Sử dụng region từ env nếu không truyền vào
+    if region is None:
+        region = RAG_EMBEDDING_REGION
+        
+    client = boto3.client("bedrock-runtime", region_name=region)
+    
+    base_image = base64.b64encode(image_bytes).decode("utf-8")
+    response = client.invoke_model(
+        body=json.dumps({
+            "inputImage": base_image,
+            "embeddingConfig": {"outputEmbeddingLength": 1024}
+        }),
+        modelId=RAG_EMBEDDING_MODEL,
+        accept="application/json",
+        contentType="application/json"
+    )
+    
+    response_body = json.loads(response.get("body").read())
+    return response_body.get("embedding"), base_image
+
+# Update function query_similar_images
+def query_similar_images(embedding, db_config, limit=3):
+    """Query PostgreSQL for similar images"""
+    conn = psycopg2.connect(**db_config)
+    cursor = conn.cursor()
+    
+    table_name = RAG_TABLE_NAME
+    query = f"""
+        SELECT description, base64, inventory, 
+               embedding <=> %s::vector AS distance
+        FROM {table_name}
+        ORDER BY distance
+        LIMIT %s;
+    """
+    
+    cursor.execute(query, (list(embedding), limit))
+    results = cursor.fetchall()
+    
+    cursor.close()
+    conn.close()
+    
+    return results
+
+
 # Thêm hàm xác định region từ model ID
 def get_region_from_model_id(model_id):
     """Xác định region dựa vào prefix của model ID"""

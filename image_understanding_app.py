@@ -4,6 +4,11 @@ import json
 import re
 import logging
 import uuid
+import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Thiết lập logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -93,6 +98,49 @@ with col1:
         )
         selected_model_id = model_options_dict[model_selection]
 
+        # Thêm sau phần Model Configuration
+        with st.container(border=True):
+            st.subheader("RAG Configuration")
+            
+            # RAG checkbox
+            enable_rag = st.checkbox("Enable RAG Mode", key="enable_rag")
+            
+            if enable_rag:
+                # Database selector với config từ .env
+                db_options = {
+                    "Planogram DB (Default)": {
+                        "host": os.getenv("DB_HOST"),
+                        "port": os.getenv("DB_PORT", "5432"),
+                        "database": os.getenv("DB_NAME"),
+                        "user": os.getenv("DB_USER"),
+                        "password": os.getenv("DB_PASSWORD")
+                    }
+                }
+                
+                # Validate DB config
+                default_db = db_options["Planogram DB (Default)"]
+                if not all([default_db["host"], default_db["user"], default_db["password"]]):
+                    st.error("⚠️ Database credentials not found in .env file!")
+                    st.info("Please configure: DB_HOST, DB_USER, DB_PASSWORD")
+                else:
+                    selected_db = st.selectbox(
+                        "Select Database:",
+                        options=list(db_options.keys()),
+                        key="selected_db"
+                    )
+                    st.session_state.db_config = db_options[selected_db]
+                    
+                    # Show connection status
+                    if st.button("Test Connection", key="test_db"):
+                        try:
+                            import psycopg2
+                            conn = psycopg2.connect(**st.session_state.db_config)
+                            conn.close()
+                            st.success("✅ Database connected successfully!")
+                        except Exception as e:
+                            st.error(f"❌ Connection failed: {str(e)}")
+
+
     with st.container(border=True):
         st.subheader("Inference Parameters")
         
@@ -149,6 +197,70 @@ with col1:
 with col2:
     with st.container(border=True):
         st.subheader("Messages")
+
+        def create_rag_messages(best_match):
+            """Create message structure for RAG"""
+            description, ref_base64, inventory, distance = best_match
+            
+            # Clear existing messages except first
+            st.session_state.messages = [st.session_state.messages[0]]
+            
+            # Add system message
+            system_content = """## Task
+        You are a Planogram Specialist for Uniben, a beverage company. Your task is to evaluate the planograms (product placement) in refrigerators containing Uniben's beverage products."""
+            
+            # Update system prompt in col1
+            # (This needs to be handled via session state)
+            
+            # Add instruction message
+            st.session_state.messages.append({
+                "id": str(uuid.uuid4()),
+                "role": "user",
+                "content": [{
+                    "id": str(uuid.uuid4()),
+                    "type": "text",
+                    "data": """## Instructions
+        Review the provided information about Uniben's beverage products:
+        ### Uniben's Beverage Products
+        - The refrigerator is yellow.
+        - Yellow bottle with yellow cap is Boncha...
+        [full instruction text]"""
+                }]
+            })
+            
+            # Add reference image
+            st.session_state.messages.append({
+                "id": str(uuid.uuid4()),
+                "role": "user",
+                "content": [{
+                    "id": str(uuid.uuid4()),
+                    "type": "image",
+                    "data": base64.b64decode(ref_base64)
+                }]
+            })
+            
+            # Add inventory response
+            st.session_state.messages.append({
+                "id": str(uuid.uuid4()),
+                "role": "assistant",
+                "content": [{
+                    "id": str(uuid.uuid4()),
+                    "type": "text",
+                    "data": inventory
+                }]
+            })
+            
+            # Final message already has the uploaded image
+            # Just add the evaluation prompt
+            for msg in st.session_state.messages:
+                if msg["role"] == "user" and any(c["type"] == "image" for c in msg["content"]):
+                    msg["content"].append({
+                        "id": str(uuid.uuid4()),
+                        "type": "text",
+                        "data": """### Output Format
+        The last refrigerator is the one you need to evaluate. Only give me back the response with the format like before, count from the bottom shelf to top, do not give me anything else."""
+                    })
+                    break
         
         # Function to add a new content item to a message
         def add_content_item(message_id):
@@ -307,29 +419,38 @@ with col2:
                             # Only update if data has changed
                             if text_data != content["data"]:
                                 update_content_data(message["id"], content["id"], text_data)
-                        else:  # image type
+                        elif content["type"] == "image":
                             uploaded_file = st.file_uploader(
                                 "Upload Image",
                                 type=['png', 'jpg', 'jpeg'],
                                 key=f"image_{content['id']}"
                             )
                             
-                            # Khi nhận ảnh từ file uploader
                             if uploaded_file:
                                 image_bytes = uploaded_file.getvalue()
                                 update_content_data(message["id"], content["id"], image_bytes)
                                 
-                                # Display preview
-                                st.image(
-                                    glib.get_bytesio_from_bytes(image_bytes),
-                                    width=200
-                                )
-                            elif content["data"] is not None:
-                                # Hiển thị hình ảnh đã tải lên trước đó
-                                st.image(
-                                    glib.get_bytesio_from_bytes(content["data"]),
-                                    width=200
-                                )
+                                # RAG auto-fill khi upload image
+                                if st.session_state.get("enable_rag", False):
+                                    with st.spinner("Finding similar images..."):
+                                        try:
+                                            # Get embedding
+                                            embedding, base64_img = glib.get_image_embedding(image_bytes)
+                                            
+                                            # Query similar images
+                                            results = glib.query_similar_images(
+                                                embedding, 
+                                                st.session_state.db_config
+                                            )
+                                            
+                                            if results and results[0][3] <= 0.1:  # High similarity
+                                                # Auto-create RAG messages
+                                                create_rag_messages(results[0])
+                                                st.success("RAG messages created!")
+                                                st.rerun()
+                                            
+                                        except Exception as e:
+                                            st.error(f"RAG error: {str(e)}")
                 
                 # Add content button
                 st.button("➕ Add Content Item", key=f"add_content_{message['id']}", 
@@ -350,6 +471,18 @@ with col3:
         st.subheader("Result")
         
         if process_button:
+            # Trong process_button handler
+            if enable_rag:
+                # Check có image không
+                has_image = False
+                for msg in st.session_state.messages:
+                    if any(c["type"] == "image" and c["data"] for c in msg["content"]):
+                        has_image = True
+                        break
+                
+                if not has_image:
+                    st.error("RAG Mode requires at least one image!")
+                    st.stop()
             with st.spinner("Processing..."):
                 try:
                     # Validate input - đảm bảo có ít nhất một message có nội dung
