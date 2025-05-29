@@ -504,66 +504,67 @@ st.title("RAG")
 col1, col2 = st.columns([1.5, 3])
 
 with col1:
+    # Upload CSV file
     with st.container(border=True):
-        st.subheader("Image Description")
-        description = st.text_area("Enter a description for the image", key=22)
+        st.subheader("Upload CSV File")
+        uploaded_csv = st.file_uploader("Choose a CSV file", type=["csv"], key="csv_upload")
+        if uploaded_csv:
+            st.success(f"CSV file '{uploaded_csv.name}' uploaded successfully!")
 
+    # Upload multiple images (no description)
     with st.container(border=True):
-        st.subheader("Upload Image")
-        uploaded_file = st.file_uploader(
-            "Choose an image", type=["png", "jpg", "jpeg"], key=1)
+        st.subheader("Upload Images")
+        uploaded_images = st.file_uploader(
+            "Choose images", type=["png", "jpg", "jpeg"],
+            accept_multiple_files=True, key="multi_image_upload"
+        )
 
-        if uploaded_file is not None:
-            st.image(uploaded_file, caption="Preview",
-                     use_container_width=True)
+        if uploaded_images:
+            for idx, img in enumerate(uploaded_images):
+                st.image(img, caption=f"Image {idx + 1}", use_container_width=True)
 
-    with st.container(border=True):
-        submit_button = st.button(
-            "Submit", type="primary", use_container_width=True)
-
-    if submit_button:
-        if uploaded_file is not None and description.strip() != "":
-            st.success("Image and description submitted successfully!")
-            st.image(uploaded_file, caption=description)
-        else:
-            st.error("Please upload an image and enter a description.")
-
-
+# === COL2: Process and send to API ===
 with col2:
-    # Process button trong container riêng
     with st.container(border=True):
         st.subheader("Processing")
-        process_button = st.button(
-            "Process", type="primary", use_container_width=True, key="process_button")
+        process_button = st.button("Processing", type="primary", use_container_width=True, key="process_button2")
 
-    # Result container
     with st.container(border=True):
         st.subheader("Result")
 
-        def encode_image_to_base64(uploaded_file):
-            if uploaded_file is not None:
-                image_bytes = uploaded_file.read()
-                return base64.b64encode(image_bytes).decode("utf-8")
-            return None
+        def encode_file_to_base64(file):
+            return base64.b64encode(file.read()).decode("utf-8")
 
         if process_button:
             with st.spinner("Đang xử lý..."):
                 try:
-                    image_base64 = encode_image_to_base64(uploaded_file)
-                    if not image_base64 or not description:
-                        st.warning("Hãy chọn ảnh và nhập mô tả")
+                    if not uploaded_csv or not uploaded_images:
+                        st.warning("Hãy upload cả CSV và ảnh trước khi xử lý")
                     else:
-                        response = requests.post("http://localhost:5000/query-image", json={
-                            "base64": image_base64,
-                            "description": description,
-                            "filename": uploaded_file.name.split(".")[0]
-                        })
+                        files = {
+                            'csv_file': (uploaded_csv.name, uploaded_csv, 'text/csv')
+                        }
+
+                        image_data = []
+                        for img in uploaded_images:
+                            img.seek(0)
+                            img_base64 = encode_file_to_base64(img)
+                            image_data.append({
+                                "filename": img.name,
+                                "base64": img_base64
+                            })
+
+                        # Send multipart/form-data
+                        response = requests.post(
+                            "http://localhost:5000/query-image",
+                            files=files,
+                            data={'images': json.dumps(image_data)}  
+                        )
 
                         if response.status_code == 200:
                             result = response.json()
-                            print(result)
-                            st.success("Tải ảnh và mô tả lên S3 thành công!")
-                            st.write("S3 Image URL:", result.get("s3url"))
+                            st.success("Tải file và ảnh lên S3 thành công!")
+                            st.write(result)
                         else:
                             st.error(f"Lỗi API: {response.text}")
                 except Exception as e:
