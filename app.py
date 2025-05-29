@@ -111,15 +111,15 @@ with col2:
     if uploaded_images:
         st.success(f"✅ Images uploaded: {len(uploaded_images)} files")
         
-        # Show image preview
-        if len(uploaded_images) <= 5:  # Only show preview for small sets
-            st.markdown("**Preview:**")
-            cols = st.columns(min(len(uploaded_images), 5))
-            for i, img in enumerate(uploaded_images[:5]):
-                with cols[i]:
-                    st.image(img, caption=img.name, width=100)
-        else:
-            st.info(f"Too many images to preview. Total: {len(uploaded_images)}")
+        # # Show image preview
+        # if len(uploaded_images) <= 5:  # Only show preview for small sets
+        #     st.markdown("**Preview:**")
+        #     cols = st.columns(min(len(uploaded_images), 5))
+        #     for i, img in enumerate(uploaded_images[:5]):
+        #         with cols[i]:
+        #             st.image(img, caption=img.name, width=100)
+        # else:
+        #     st.info(f"Too many images to preview. Total: {len(uploaded_images)}")
     
     st.markdown('</div>', unsafe_allow_html=True)
 
