@@ -7,8 +7,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy source code
-COPY image_understanding_lib.py .
-COPY image_understanding_app.py .
+COPY *.py .
 
 # Cấu hình AWS credentials sẽ được mount từ máy host
 
@@ -25,4 +24,4 @@ USER appuser
 
 # Sửa lỗi port và đường dẫn
 ENV PATH="/usr/local/bin:${PATH}"
-CMD ["streamlit", "run", "image_understanding_app.py", "--server.address=0.0.0.0", "--server.port=8080"]
+CMD ["streamlit", "run", "app.py", "--server.address=0.0.0.0", "--server.port=8080"]
