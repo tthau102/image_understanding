@@ -118,25 +118,57 @@ def get_db_connection():
         logger.error(f"❌ Database connection failed: {str(e)}")
         raise
 
+def check_image_exists_in_db(conn, image_name: str) -> bool:
+    """
+    Check if an image name already exists in the database
+
+    Args:
+        conn: Database connection
+        image_name: Name of the image to check
+
+    Returns:
+        exists: Boolean indicating if image name exists
+    """
+    try:
+        cursor = conn.cursor()
+
+        check_query = f"""
+            SELECT COUNT(*) FROM {DB_TABLE} WHERE image_name = %s
+        """
+
+        cursor.execute(check_query, (image_name,))
+        count = cursor.fetchone()[0]
+        cursor.close()
+
+        exists = count > 0
+        if exists:
+            logger.info(f"🔍 Image already exists in DB: {image_name}")
+
+        return exists
+
+    except Exception as e:
+        logger.error(f"❌ DB check failed for {image_name}: {str(e)}")
+        return False
+
 def insert_record_to_db(conn, record: Dict) -> bool:
     """
     Insert record to PostgreSQL database
-    
+
     Args:
         conn: Database connection
         record: Dict with keys: image_name, embedding, image_base64, description, s3_url
-    
+
     Returns:
         success: Boolean
     """
     try:
         cursor = conn.cursor()
-        
+
         insert_query = f"""
             INSERT INTO {DB_TABLE} (image_name, embedding, image_base64, description, s3_url)
             VALUES (%s, %s, %s, %s, %s)
         """
-        
+
         cursor.execute(insert_query, (
             record['image_name'],
             record['embedding'],
@@ -144,13 +176,13 @@ def insert_record_to_db(conn, record: Dict) -> bool:
             record['description'],
             record['s3_url']
         ))
-        
+
         conn.commit()
         cursor.close()
-        
+
         logger.info(f"✅ Inserted to DB: {record['image_name']}")
         return True
-        
+
     except Exception as e:
         logger.error(f"❌ DB insertion failed for {record['image_name']}: {str(e)}")
         conn.rollback()
@@ -159,11 +191,12 @@ def insert_record_to_db(conn, record: Dict) -> bool:
 def process_image_record(record: Dict, s3_folder: str) -> Tuple[bool, str]:
     """
     Process single image record: generate embedding, upload to S3, insert to DB
-    
+    Skips processing if image name already exists in database
+
     Args:
         record: Dict with image_name, description, image_file
         s3_folder: S3 folder path
-    
+
     Returns:
         (success, error_message)
     """
@@ -171,21 +204,28 @@ def process_image_record(record: Dict, s3_folder: str) -> Tuple[bool, str]:
         image_name = record['image_name']
         description = record['description']
         image_file = record['image_file']
-        
+
         logger.info(f"🔄 Processing: {image_name}")
-        
+
+        # Check if image already exists in database
+        conn = get_db_connection()
+        if check_image_exists_in_db(conn, image_name):
+            conn.close()
+            logger.info(f"⏭️ Skipping {image_name}: Already exists in database")
+            return True, "Skipped - Already exists"
+
         # Get image bytes
         image_file.seek(0)
         image_bytes = image_file.getvalue()
-        
+
         # Generate embedding
         embedding, base64_image = generate_image_embedding(image_bytes)
-        
+
         # Upload image to S3
         image_filename = f"{image_name}.jpg"
         image_file.seek(0)  # Reset pointer
         s3_url = upload_file_to_s3(image_file, s3_folder, image_filename)
-        
+
         # Prepare database record
         db_record = {
             'image_name': image_name,
@@ -194,18 +234,17 @@ def process_image_record(record: Dict, s3_folder: str) -> Tuple[bool, str]:
             'description': description,
             's3_url': s3_url
         }
-        
+
         # Insert to database
-        conn = get_db_connection()
         success = insert_record_to_db(conn, db_record)
         conn.close()
-        
+
         if success:
             logger.info(f"✅ Successfully processed: {image_name}")
             return True, "Success"
         else:
             return False, "Database insertion failed"
-            
+
     except Exception as e:
         error_msg = f"Processing failed for {record.get('image_name', 'unknown')}: {str(e)}"
         logger.error(f"❌ {error_msg}")
@@ -214,7 +253,7 @@ def process_image_record(record: Dict, s3_folder: str) -> Tuple[bool, str]:
 def upload_csv_to_s3(csv_file, s3_folder: str, filename: str = "descriptions.csv") -> str:
     """
     Upload CSV file to S3
-    
+
     Returns:
         s3_url: Full S3 URL for CSV
     """
@@ -223,7 +262,7 @@ def upload_csv_to_s3(csv_file, s3_folder: str, filename: str = "descriptions.csv
         s3_url = upload_file_to_s3(csv_file, s3_folder, filename)
         logger.info(f"✅ CSV uploaded to S3: {filename}")
         return s3_url
-        
+
     except Exception as e:
         logger.error(f"❌ CSV upload to S3 failed: {str(e)}")
         raise

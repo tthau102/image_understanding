@@ -156,8 +156,8 @@ if process_button:
         if results['total_records'] > 0:
             st.markdown('<div class="stats-container">', unsafe_allow_html=True)
             
-            col_stat1, col_stat2, col_stat3, col_stat4 = st.columns(4)
-            
+            col_stat1, col_stat2, col_stat3, col_stat4, col_stat5 = st.columns(5)
+
             with col_stat1:
                 st.markdown(f'''
                 <div class="stat-box">
@@ -165,7 +165,7 @@ if process_button:
                     <div>Total Records</div>
                 </div>
                 ''', unsafe_allow_html=True)
-            
+
             with col_stat2:
                 st.markdown(f'''
                 <div class="stat-box">
@@ -173,16 +173,24 @@ if process_button:
                     <div>Successful</div>
                 </div>
                 ''', unsafe_allow_html=True)
-            
+
             with col_stat3:
+                st.markdown(f'''
+                <div class="stat-box">
+                    <div class="stat-number" style="color: #ffc107;">{results.get('skipped', 0)}</div>
+                    <div>Skipped</div>
+                </div>
+                ''', unsafe_allow_html=True)
+
+            with col_stat4:
                 st.markdown(f'''
                 <div class="stat-box">
                     <div class="stat-number" style="color: #dc3545;">{results['failed']}</div>
                     <div>Failed</div>
                 </div>
                 ''', unsafe_allow_html=True)
-            
-            with col_stat4:
+
+            with col_stat5:
                 st.markdown(f'''
                 <div class="stat-box">
                     <div class="stat-number">{results['processing_time']}s</div>
@@ -193,21 +201,36 @@ if process_button:
             st.markdown('</div>', unsafe_allow_html=True)
         
         # Success summary
-        if results['successful'] > 0:
+        processed_count = results['successful'] + results.get('skipped', 0)
+        if processed_count > 0:
             st.markdown(f'''
             <div class="result-success">
-                <h4>✅ Processing Completed Successfully!</h4>
-                <p><strong>Successfully processed:</strong> {results['successful']}/{results['total_records']} records</p>
+                <h4>✅ Processing Completed!</h4>
+                <p><strong>New records processed:</strong> {results['successful']}/{results['total_records']}</p>
+                <p><strong>Skipped (already exist):</strong> {results.get('skipped', 0)}/{results['total_records']}</p>
                 <p><strong>S3 Folder:</strong> {results['s3_folder']}</p>
                 <p><strong>Processing Time:</strong> {results['processing_time']} seconds</p>
             </div>
             ''', unsafe_allow_html=True)
-            
+
             # Show successful items
             if results['success_items']:
-                with st.expander(f"✅ View Successful Items ({len(results['success_items'])})"):
+                with st.expander(f"✅ View New Items ({len(results['success_items'])})"):
                     for item in results['success_items']:
                         st.write(f"• {item}")
+
+        # Show skipped items
+        if results.get('skipped_items'):
+            st.markdown(f'''
+            <div class="result-warning">
+                <h4>⏭️ Skipped Items ({len(results['skipped_items'])})</h4>
+                <p>These images already exist in the database and were skipped:</p>
+            </div>
+            ''', unsafe_allow_html=True)
+
+            with st.expander(f"⏭️ View Skipped Items ({len(results['skipped_items'])})"):
+                for item in results['skipped_items']:
+                    st.write(f"• {item}")
         
         # Errors and warnings
         if results['errors']:
@@ -223,7 +246,7 @@ if process_button:
                     st.write(f"• {error}")
         
         # Complete failure case
-        if results['successful'] == 0 and results['total_records'] == 0:
+        if results['successful'] == 0 and results.get('skipped', 0) == 0 and results['total_records'] == 0:
             st.markdown('''
             <div class="result-error">
                 <h4>❌ Processing Failed</h4>

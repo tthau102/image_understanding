@@ -17,9 +17,11 @@ class RAGProcessor:
             'total_records': 0,
             'successful': 0,
             'failed': 0,
+            'skipped': 0,
             'processing_time': 0,
             'errors': [],
             'success_items': [],
+            'skipped_items': [],
             's3_folder': '',
             'csv_s3_url': ''
         }
@@ -94,7 +96,7 @@ class RAGProcessor:
             logger.error(f"❌ {error_msg}")
             return False, error_msg
     
-    def process_records(self) -> Tuple[bool, str]:
+    def process_records(self) -> Tuple[bool, str]: 
         """
         Process all matched records: embeddings + S3 + DB
         
@@ -111,16 +113,21 @@ class RAGProcessor:
             
             try:
                 success, error_msg = process_image_record(record, self.s3_folder)
-                
+
                 if success:
-                    self.processing_results['successful'] += 1
-                    self.processing_results['success_items'].append(record['image_name'])
-                    logger.info(f"✅ [{i}/{len(self.matched_records)}] Success: {record['image_name']}")
+                    if error_msg == "Skipped - Already exists":
+                        self.processing_results['skipped'] += 1
+                        self.processing_results['skipped_items'].append(record['image_name'])
+                        logger.info(f"⏭️ [{i}/{len(self.matched_records)}] Skipped: {record['image_name']} (already exists)")
+                    else:
+                        self.processing_results['successful'] += 1
+                        self.processing_results['success_items'].append(record['image_name'])
+                        logger.info(f"✅ [{i}/{len(self.matched_records)}] Success: {record['image_name']}")
                 else:
                     self.processing_results['failed'] += 1
                     self.processing_results['errors'].append(f"{record['image_name']}: {error_msg}")
                     logger.error(f"❌ [{i}/{len(self.matched_records)}] Failed: {record['image_name']} - {error_msg}")
-                    
+
             except Exception as e:
                 self.processing_results['failed'] += 1
                 error_msg = f"{record['image_name']}: Unexpected error - {str(e)}"
@@ -131,8 +138,9 @@ class RAGProcessor:
         self.processing_results['processing_time'] = round(time.time() - start_time, 2)
         
         # Determine overall success
-        if self.processing_results['successful'] > 0:
-            success_msg = f"Processing completed: {self.processing_results['successful']}/{self.processing_results['total_records']} successful"
+        processed_count = self.processing_results['successful'] + self.processing_results['skipped']
+        if processed_count > 0:
+            success_msg = f"Processing completed: {self.processing_results['successful']} new, {self.processing_results['skipped']} skipped, {self.processing_results['failed']} failed"
             logger.info(f"✅ {success_msg}")
             return True, success_msg
         else:
@@ -176,6 +184,7 @@ class RAGProcessor:
             logger.info(f"📊 Results Summary:")
             logger.info(f"   Total Records: {self.processing_results['total_records']}")
             logger.info(f"   Successful: {self.processing_results['successful']}")
+            logger.info(f"   Skipped: {self.processing_results['skipped']}")
             logger.info(f"   Failed: {self.processing_results['failed']}")
             logger.info(f"   Processing Time: {self.processing_results['processing_time']}s")
             logger.info(f"   S3 Folder: {self.processing_results['s3_folder']}")
