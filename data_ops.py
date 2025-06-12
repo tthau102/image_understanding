@@ -268,3 +268,34 @@ def upload_csv_to_s3(csv_file, s3_folder: str, filename: str = "descriptions.csv
         raise
 
 
+def get_review_data(conn) -> List[Dict]:
+    """
+    Get all data from need_review table
+
+    Args:
+        conn: Database connection
+
+    Returns:
+        List of dictionaries containing review data
+    """
+    try:
+        cursor = conn.cursor()
+
+        query = "SELECT image_name, image_base64, result FROM need_review ORDER BY image_name"
+        cursor.execute(query)
+
+        review_data = []
+        for row in cursor.fetchall():
+            review_data.append({
+                'image_name': row[0],
+                'image_base64': row[1],
+                'result': row[2]
+            })
+
+        cursor.close()
+        logger.info(f"🔍 Found {len(review_data)} items in need_review table")
+        return review_data
+
+    except Exception as e:
+        logger.error(f"❌ Failed to get review data: {str(e)}")
+        return []
