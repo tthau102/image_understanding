@@ -299,3 +299,44 @@ def get_review_data(conn) -> List[Dict]:
     except Exception as e:
         logger.error(f"❌ Failed to get review data: {str(e)}")
         return []
+
+def get_pending_review_items(conn) -> List[Dict]:
+    """
+    Get all pending review items from results table
+    
+    Args:
+        conn: Database connection
+        
+    Returns:
+        List of dictionaries containing pending review data
+    """
+    try:
+        cursor = conn.cursor()
+        
+        query = """
+            SELECT image_name, image_base64, s3_url, product_count, compliance_assessment 
+            FROM results 
+            WHERE need_review = true AND review_status = 'pending'
+            ORDER BY image_name
+        """
+        cursor.execute(query)
+        
+        pending_items = []
+        for row in cursor.fetchall():
+            pending_items.append({
+                'image_name': row[0],
+                'image_base64': row[1], 
+                's3_url': row[2],
+                'product_count': row[3],
+                'compliance_assessment': row[4]
+            })
+        
+        cursor.close()
+        logger.info(f"🔍 Found {len(pending_items)} pending review items")
+        return pending_items
+        
+    except Exception as e:
+        logger.error(f"❌ Failed to get pending review items: {str(e)}")
+        return []
+
+        
