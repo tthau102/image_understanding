@@ -1,10 +1,9 @@
 import streamlit as st
 import logging
-import base64
-from io import BytesIO
-from PIL import Image
+import json
+import pandas as pd
 from rag_processor import RAGProcessor
-from data_ops import get_db_connection, get_review_data, get_pending_review_items
+from data_ops import get_db_connection, get_pending_review_items, generate_presigned_url
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -284,8 +283,8 @@ with tab1:
 
 # Tab 2: Review
 with tab2:
-    st.markdown("### Review Pending Items")
-    
+    st.markdown("### 🔍 Review Pending Items")
+
     # Initialize session state
     if 'selected_image' not in st.session_state:
         st.session_state.selected_image = None
@@ -293,20 +292,64 @@ with tab2:
         st.session_state.search_term = ""
     if 'current_page' not in st.session_state:
         st.session_state.current_page = 1
-    
+
     # Load pending review data
     try:
         conn = get_db_connection()
         pending_items = get_pending_review_items(conn)
         conn.close()
-        
-        if not pending_items:
+
+        # Display statistics
+        if pending_items:
+            # Calculate statistics
+            total_items = len(pending_items)
+            items_with_comments = len([item for item in pending_items if item.get('review_comment')])
+            compliance_pass = len([item for item in pending_items if item.get('compliance_assessment')])
+            compliance_fail = total_items - compliance_pass
+
+            # Display stats in columns
+            stat_col1, stat_col2, stat_col3, stat_col4 = st.columns(4)
+
+            with stat_col1:
+                st.markdown(f"""
+                <div class="stat-box">
+                    <div class="stat-number">{total_items}</div>
+                    <div>Total Items</div>
+                </div>
+                """, unsafe_allow_html=True)
+
+            with stat_col2:
+                st.markdown(f"""
+                <div class="stat-box">
+                    <div class="stat-number" style="color: #28a745;">{compliance_pass}</div>
+                    <div>Pass</div>
+                </div>
+                """, unsafe_allow_html=True)
+
+            with stat_col3:
+                st.markdown(f"""
+                <div class="stat-box">
+                    <div class="stat-number" style="color: #dc3545;">{compliance_fail}</div>
+                    <div>Fail</div>
+                </div>
+                """, unsafe_allow_html=True)
+
+            with stat_col4:
+                st.markdown(f"""
+                <div class="stat-box">
+                    <div class="stat-number" style="color: #6c757d;">{items_with_comments}</div>
+                    <div>With Comments</div>
+                </div>
+                """, unsafe_allow_html=True)
+
+            st.markdown("---")
+        else:
             st.info("📝 No pending review items found")
-            return
-            
+            st.stop()
+
     except Exception as e:
         st.error(f"❌ Error loading pending review data: {str(e)}")
-        return
+        st.stop()
     
     # Apply search filter
     search_term = st.session_state.search_term
@@ -370,24 +413,33 @@ with tab2:
         
         # Image list
         st.markdown("---")
-        
+
         if page_items:
             for item in page_items:
                 image_name = item['image_name']
-                
+                compliance = item['compliance_assessment']
+                has_comment = bool(item.get('review_comment'))
+
                 # Check if selected
                 is_selected = st.session_state.selected_image == image_name
-                
+
+                # Create status indicators
+                compliance_icon = "✅" if compliance else "❌"
+                comment_icon = "💬" if has_comment else ""
+
                 # Create clickable button with conditional styling
                 if is_selected:
                     st.markdown(f"""
-                    <div style="background-color: #2196f3; color: white; padding: 8px 12px; 
+                    <div style="background-color: #2196f3; color: white; padding: 8px 12px;
                                 margin: 2px 0; border-radius: 5px; border: 2px solid #1976d2;">
-                        <strong>📷 {image_name}</strong>
+                        <strong>📷 {image_name}</strong><br>
+                        <small>{compliance_icon} {comment_icon}</small>
                     </div>
                     """, unsafe_allow_html=True)
                 else:
-                    if st.button(f"📷 {image_name}", key=f"btn_{image_name}", use_container_width=True):
+                    # Create button with status indicators
+                    button_text = f"📷 {image_name}\n{compliance_icon} {comment_icon}"
+                    if st.button(button_text, key=f"btn_{image_name}", use_container_width=True):
                         st.session_state.selected_image = image_name
                         st.rerun()
         else:
@@ -400,44 +452,37 @@ with tab2:
     # Column 2: Image Display
     with col2:
         st.markdown("#### 🖼️ Image Preview")
-        
+
         if st.session_state.selected_image:
             # Find selected item data
-            selected_item = next((item for item in filtered_items 
+            selected_item = next((item for item in filtered_items
                                 if item['image_name'] == st.session_state.selected_image), None)
-            
+
             if selected_item:
                 st.markdown(f"**📷 {selected_item['image_name']}**")
-                
+
+                # Display timestamp
+                if selected_item['timestamp']:
+                    st.caption(f"📅 {selected_item['timestamp']}")
+
                 try:
-                    # Try to display from S3 URL first
+                    # Display from S3 URL using presigned URL
                     if selected_item['s3_url']:
-                        st.image(selected_item['s3_url'], width=300, caption="Image from S3")
-                    # Fallback to base64
-                    elif selected_item['image_base64']:
-                        image_data = base64.b64decode(selected_item['image_base64'])
-                        image = Image.open(BytesIO(image_data))
-                        st.image(image, width=300, caption="Image from Database")
+                        # Generate presigned URL for secure access
+                        presigned_url = generate_presigned_url(selected_item['s3_url'])
+                        st.image(presigned_url, width=300, caption="Image from S3")
                     else:
-                        st.error("❌ No image data available")
-                        
+                        st.error("❌ No S3 URL available for this image")
+
                 except Exception as e:
                     st.error(f"❌ Cannot display image: {str(e)}")
-                    
-                    # Try fallback if S3 failed
-                    if selected_item['s3_url'] and selected_item['image_base64']:
-                        try:
-                            st.info("🔄 Trying fallback to database image...")
-                            image_data = base64.b64decode(selected_item['image_base64'])
-                            image = Image.open(BytesIO(image_data))
-                            st.image(image, width=300, caption="Image from Database (Fallback)")
-                        except Exception as e2:
-                            st.error(f"❌ Fallback also failed: {str(e2)}")
+                    st.info("💡 Please check if the S3 URL is accessible or if AWS credentials are configured correctly")
+
             else:
                 st.info("🔍 Selected image not found in current filter")
         else:
             st.markdown("""
-            <div style="height: 300px; display: flex; align-items: center; justify-content: center; 
+            <div style="height: 300px; display: flex; align-items: center; justify-content: center;
                         background-color: #f0f0f0; border: 2px dashed #ccc; border-radius: 10px;">
                 <p style="color: #666; text-align: center;">
                     📷 Select an image from the list<br>to view details
@@ -445,102 +490,132 @@ with tab2:
             </div>
             """, unsafe_allow_html=True)
     
-    # Column 3: JSON Product Count Display
+    # Column 3: Analysis Results
     with col3:
-        st.markdown("#### 📊 Product Analysis")
-        
+        st.markdown("#### 📊 Analysis Results")
+
         if st.session_state.selected_image:
             # Find selected item data
-            selected_item = next((item for item in filtered_items 
+            selected_item = next((item for item in filtered_items
                                 if item['image_name'] == st.session_state.selected_image), None)
-            
-            if selected_item and selected_item['product_count']:
-                try:
-                    # Parse JSON
-                    product_data = json.loads(selected_item['product_count'])
-                    
-                    # Get compliance assessment
-                    compliance = selected_item['compliance_assessment']
-                    compliance_text = "✅ Pass" if compliance else "❌ Fail"
-                    compliance_color = "#28a745" if compliance else "#dc3545"
-                    
-                    # Display summary
-                    if 'refrigerator_analysis' in product_data:
-                        analysis = product_data['refrigerator_analysis']
-                        total_shelves = analysis.get('number_of_shelves', 0)
-                        
-                        st.markdown(f"""
-                        <div style="background-color: #e8f5e8; padding: 10px; border-radius: 5px; margin-bottom: 15px;">
-                            <strong>🗄️ Refrigerator Analysis</strong><br>
-                            Total Shelves: <strong>{total_shelves}</strong><br>
-                            Overall Compliance: <span style="color: {compliance_color}; font-weight: bold;">{compliance_text}</span>
-                        </div>
-                        """, unsafe_allow_html=True)
-                        
-                        # Create shelves table
-                        if 'shelves' in analysis and analysis['shelves']:
-                            shelves_data = []
-                            
-                            for shelf in analysis['shelves']:
-                                shelves_data.append({
-                                    'Shelf': shelf.get('shelf', ''),
-                                    'Boncha': shelf.get('boncha', 0),
-                                    'Abben': shelf.get('abben', 0), 
-                                    'Joco': shelf.get('joco', 0),
-                                    'Compliance': compliance_text
-                                })
-                            
-                            # Display as DataFrame table
-                            df_shelves = pd.DataFrame(shelves_data)
-                            
-                            # Style the dataframe
-                            def style_compliance(val):
-                                color = '#28a745' if '✅' in val else '#dc3545'
-                                return f'color: {color}; font-weight: bold'
-                            
-                            styled_df = df_shelves.style.applymap(
-                                style_compliance, subset=['Compliance']
-                            )
-                            
-                            st.dataframe(styled_df, use_container_width=True, hide_index=True)
-                            
-                            # Calculate total products
-                            total_products = sum(
-                                shelf.get('boncha', 0) + shelf.get('abben', 0) + shelf.get('joco', 0)
-                                for shelf in analysis['shelves']
-                            )
-                            
+
+            if selected_item:
+                # Display compliance status
+                compliance = selected_item['compliance_assessment']
+                compliance_text = "✅ Pass" if compliance else "❌ Fail"
+                compliance_color = "#28a745" if compliance else "#dc3545"
+
+                st.markdown(f"""
+                <div style="background-color: {'#d4edda' if compliance else '#f8d7da'};
+                            padding: 10px; border-radius: 5px; margin-bottom: 15px;
+                            border: 1px solid {'#c3e6cb' if compliance else '#f5c6cb'};">
+                    <strong>🎯 Compliance Status:</strong><br>
+                    <span style="color: {compliance_color}; font-weight: bold; font-size: 1.1em;">{compliance_text}</span>
+                </div>
+                """, unsafe_allow_html=True)
+
+                # Display review comment if exists
+                if selected_item.get('review_comment'):
+                    st.markdown("#### 💬 Review Comment")
+                    st.markdown(f"""
+                    <div style="background-color: #f8f9fa; padding: 10px; border-radius: 5px;
+                                margin-bottom: 15px; border-left: 4px solid #007bff;">
+                        {selected_item['review_comment']}
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                # Display product analysis
+                if selected_item['product_count']:
+                    try:
+                        # Parse JSON product count data
+                        if isinstance(selected_item['product_count'], str):
+                            product_data = json.loads(selected_item['product_count'])
+                        else:
+                            product_data = selected_item['product_count']
+
+                        # Display shelves analysis based on new format
+                        if 'shelves' in product_data:
+                            shelves = product_data['shelves']
+                            total_shelves = len(shelves)
+
                             st.markdown(f"""
-                            <div style="margin-top: 15px; font-size: 12px; color: #666;">
-                                📈 <strong>Summary:</strong> {total_products} total products detected across {total_shelves} shelves
+                            <div style="background-color: #e8f5e8; padding: 10px; border-radius: 5px; margin-bottom: 15px;">
+                                <strong>🗄️ Shelf Analysis</strong><br>
+                                Total Shelves: <strong>{total_shelves}</strong>
                             </div>
                             """, unsafe_allow_html=True)
+
+                            # Create shelves table
+                            shelves_data = []
+                            total_joco = 0
+                            total_abben = 0
+                            total_boncha = 0
+
+                            for shelf in shelves:
+                                shelf_number = shelf.get('shelf_number', 'N/A')
+                                drinks = shelf.get('drinks', {})
+
+                                joco_count = drinks.get('joco', 0)
+                                abben_count = drinks.get('abben', 0)
+                                boncha_count = drinks.get('boncha', 0)
+
+                                shelves_data.append({
+                                    'Shelf': f"Shelf {shelf_number}",
+                                    'Joco': joco_count,
+                                    'Abben': abben_count,
+                                    'Boncha': boncha_count,
+                                    'Total': joco_count + abben_count + boncha_count
+                                })
+
+                                total_joco += joco_count
+                                total_abben += abben_count
+                                total_boncha += boncha_count
+
+                            # Display as DataFrame table
+                            df_shelves = pd.DataFrame(shelves_data)
+                            st.dataframe(df_shelves, use_container_width=True, hide_index=True)
+
+                            # # Display summary
+                            # total_products = total_joco + total_abben + total_boncha
+                            # st.markdown(f"""
+                            # <div style="margin-top: 15px; padding: 10px; background-color: #f8f9fa;
+                            #             border-radius: 5px; font-size: 14px;">
+                            #     📈 <strong>Summary:</strong><br>
+                            #     • Total Products: <strong>{total_products}</strong><br>
+                            #     • Joco: <strong>{total_joco}</strong><br>
+                            #     • Abben: <strong>{total_abben}</strong><br>
+                            #     • Boncha: <strong>{total_boncha}</strong><br>
+                            #     • Across <strong>{total_shelves}</strong> shelves
+                            # </div>
+                            # """, unsafe_allow_html=True)
                         else:
-                            st.warning("⚠️ No shelves data found")
-                    else:
-                        st.warning("⚠️ No refrigerator analysis found")
-                        
-                        # Show raw JSON as fallback
-                        with st.expander("📄 Raw JSON Data"):
+                            st.warning("⚠️ No shelves data found in the expected format")
+
+                        # Show raw JSON data in expandable section
+                        with st.expander("📄 View Raw JSON Data"):
                             st.json(product_data)
-                            
-                except json.JSONDecodeError as e:
-                    st.error(f"❌ Invalid JSON format: {str(e)}")
-                    
-                    # Show raw data
-                    with st.expander("📄 Raw Data"):
-                        st.text(selected_item['product_count'])
-                        
-                except Exception as e:
-                    st.error(f"❌ Error parsing product data: {str(e)}")
-            else:
-                st.warning("⚠️ No product analysis data available")
+
+                    except json.JSONDecodeError as e:
+                        st.error(f"❌ Invalid JSON format: {str(e)}")
+
+                        # Show raw data
+                        with st.expander("📄 Raw Data"):
+                            st.text(str(selected_item['product_count']))
+
+                    except Exception as e:
+                        st.error(f"❌ Error parsing product data: {str(e)}")
+
+                        # Show raw data as fallback
+                        with st.expander("📄 Raw Data"):
+                            st.text(str(selected_item['product_count']))
+                else:
+                    st.warning("⚠️ No product analysis data available")
         else:
             st.markdown("""
-            <div style="height: 200px; display: flex; align-items: center; justify-content: center; 
+            <div style="height: 200px; display: flex; align-items: center; justify-content: center;
                         background-color: #fff3cd; border: 2px dashed #ffc107; border-radius: 10px;">
                 <p style="color: #856404; text-align: center;">
-                    📊 Select an image to view<br>product analysis
+                    📊 Select an image to view<br>analysis results
                 </p>
             </div>
             """, unsafe_allow_html=True)
