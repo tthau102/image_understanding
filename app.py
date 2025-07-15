@@ -246,13 +246,13 @@ with tab1:
                     st.markdown(f"""
                     <div style="background-color: #2196f3; color: white; padding: 8px 12px;
                                 margin: 2px 0; border-radius: 5px; border: 2px solid #1976d2;">
-                        <strong>📷 {image_name}</strong><br>
+                        # <strong>📷 {image_name}</strong><br>
                         <small>{compliance_icon} {comment_icon}</small>
                     </div>
                     """, unsafe_allow_html=True)
                 else:
                     # Create button with status indicators
-                    button_text = f"📷 {image_name}\n{compliance_icon} {comment_icon}"
+                    button_text = f"{image_name} {compliance_icon} {comment_icon}"
                     if st.button(button_text, key=f"btn_{image_name}", use_container_width=True):
                         st.session_state.selected_image = image_name
                         st.rerun()

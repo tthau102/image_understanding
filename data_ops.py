@@ -283,7 +283,6 @@ def get_pending_review_items(conn) -> List[Dict]:
         query = """
             SELECT id, image_name, s3_url, product_count, compliance_assessment, review_comment, timestamp
             FROM results
-            WHERE need_review = true
             ORDER BY timestamp DESC
         """
         cursor.execute(query)
