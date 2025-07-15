@@ -173,7 +173,7 @@ with tab1:
         filtered_items = pending_items
     
     # Pagination setup
-    items_per_page = 20
+    items_per_page = 10
     total_items = len(filtered_items)
     total_pages = max(1, (total_items - 1) // items_per_page + 1)
     
@@ -225,9 +225,6 @@ with tab1:
                     st.session_state.current_page += 1
                     st.rerun()
         
-        # Image list
-        st.markdown("---")
-
         if page_items:
             for item in page_items:
                 image_name = item['image_name']
@@ -239,7 +236,6 @@ with tab1:
 
                 # Create status indicators
                 compliance_icon = "✅" if compliance else "❌"
-                comment_icon = "💬" if has_comment else ""
 
                 # Create clickable button with conditional styling
                 if is_selected:
@@ -247,12 +243,12 @@ with tab1:
                     <div style="background-color: #2196f3; color: white; padding: 8px 12px;
                                 margin: 2px 0; border-radius: 5px; border: 2px solid #1976d2;">
                         # <strong>📷 {image_name}</strong><br>
-                        <small>{compliance_icon} {comment_icon}</small>
+                        <small>{compliance_icon}</small>
                     </div>
                     """, unsafe_allow_html=True)
                 else:
                     # Create button with status indicators
-                    button_text = f"{image_name} {compliance_icon} {comment_icon}"
+                    button_text = f"{image_name} {compliance_icon}"
                     if st.button(button_text, key=f"btn_{image_name}", use_container_width=True):
                         st.session_state.selected_image = image_name
                         st.rerun()
@@ -284,7 +280,7 @@ with tab1:
                     if selected_item['s3_url']:
                         # Generate presigned URL for secure access
                         presigned_url = generate_presigned_url(selected_item['s3_url'])
-                        st.image(presigned_url, width=300, caption="Image from S3")
+                        st.image(presigned_url, use_container_width=True, caption="Image from S3")
                     else:
                         st.error("❌ No S3 URL available for this image")
 
@@ -327,16 +323,6 @@ with tab1:
                     <span style="color: {compliance_color}; font-weight: bold; font-size: 1.1em;">{compliance_text}</span>
                 </div>
                 """, unsafe_allow_html=True)
-
-                # Display review comment if exists
-                if selected_item.get('review_comment'):
-                    st.markdown("#### 💬 Review Comment")
-                    st.markdown(f"""
-                    <div style="background-color: #f8f9fa; padding: 10px; border-radius: 5px;
-                                margin-bottom: 15px; border-left: 4px solid #007bff;">
-                        {selected_item['review_comment']}
-                    </div>
-                    """, unsafe_allow_html=True)
 
                 # Display product analysis
                 if selected_item['product_count']:
@@ -405,9 +391,9 @@ with tab1:
                         else:
                             st.warning("⚠️ No shelves data found in the expected format")
 
-                        # Show raw JSON data in expandable section
-                        with st.expander("📄 View Raw JSON Data"):
-                            st.json(product_data)
+                        # # Show raw JSON data in expandable section
+                        # with st.expander("📄 View Raw JSON Data"):
+                        #     st.json(product_data)
 
                     except json.JSONDecodeError as e:
                         st.error(f"❌ Invalid JSON format: {str(e)}")
@@ -424,6 +410,17 @@ with tab1:
                             st.text(str(selected_item['product_count']))
                 else:
                     st.warning("⚠️ No product analysis data available")
+
+                # Display review comment if exists
+                if selected_item.get('review_comment'):
+                    st.markdown("#### 💬 Review Comment")
+                    st.markdown(f"""
+                    <div style="background-color: #f8f9fa; padding: 10px; border-radius: 5px;
+                                margin-bottom: 15px; border-left: 4px solid #007bff;">
+                        {selected_item['review_comment']}
+                    </div>
+                    """, unsafe_allow_html=True)
+
         else:
             st.markdown("""
             <div style="height: 200px; display: flex; align-items: center; justify-content: center;
