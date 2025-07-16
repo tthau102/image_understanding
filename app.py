@@ -97,6 +97,34 @@ tab1, tab2 = st.tabs(["🔍 Review", "📊 RAG Data Ingestion", ])
 
 # Tab 2: Review
 with tab1:
+    # Add CSS to remove scroll bars from Review tab and columns
+    st.markdown("""
+    <style>
+    /* Remove scroll from main Review tab */
+    div[data-testid="stTabContent"] {
+        overflow: hidden !important;
+        max-height: none !important;
+    }
+
+    /* Remove scroll from all columns in Review tab */
+    div[data-testid="stTabContent"] div[data-testid="stVerticalBlock"] {
+        overflow: hidden !important;
+        max-height: none !important;
+    }
+
+    /* Remove scroll from column containers */
+    div[data-testid="stTabContent"] div[data-testid="stHorizontalBlock"] div[data-testid="stVerticalBlock"] {
+        overflow: hidden !important;
+        max-height: none !important;
+    }
+
+    /* Ensure content fits naturally */
+    div[data-testid="stTabContent"] .stMarkdown {
+        overflow: visible !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
     st.markdown("### 🔍 Review Pending Items")
 
     # Initialize session state
@@ -172,19 +200,8 @@ with tab1:
     else:
         filtered_items = pending_items
     
-    # Pagination setup
-    items_per_page = 10
+    # Get total items count for display
     total_items = len(filtered_items)
-    total_pages = max(1, (total_items - 1) // items_per_page + 1)
-    
-    # Ensure current page is valid
-    if st.session_state.current_page > total_pages:
-        st.session_state.current_page = 1
-    
-    # Calculate pagination
-    start_idx = (st.session_state.current_page - 1) * items_per_page
-    end_idx = min(start_idx + items_per_page, total_items)
-    page_items = filtered_items[start_idx:end_idx] if filtered_items else []
     
     # 3-Column Layout
     col1, col2, col3 = st.columns([0.25, 0.35, 0.40])
@@ -205,59 +222,51 @@ with tab1:
         # Update search term if changed
         if new_search != st.session_state.search_term:
             st.session_state.search_term = new_search
-            st.session_state.current_page = 1
             st.rerun()
         
-        # Pagination controls
-        if total_pages > 1:
-            col_prev, col_page, col_next = st.columns([1, 2, 1])
-            
-            with col_prev:
-                if st.button("◀", disabled=st.session_state.current_page <= 1):
-                    st.session_state.current_page -= 1
-                    st.rerun()
-            
-            with col_page:
-                st.markdown(f"**Page {st.session_state.current_page}/{total_pages}**")
-            
-            with col_next:
-                if st.button("▶", disabled=st.session_state.current_page >= total_pages):
-                    st.session_state.current_page += 1
-                    st.rerun()
-        
-        if page_items:
-            for item in page_items:
-                image_name = item['image_name']
-                compliance = item['compliance_assessment']
-                has_comment = bool(item.get('review_comment'))
+        # Add CSS specific to Pending Images column only
+        st.markdown("""
+        <style>
+        /* Only apply scroll to the Pending Images container */
+        .pending-images-scroll {
+            overflow-x: hidden !important;
+            overflow-y: auto !important;
+        }
+        </style>
+        """, unsafe_allow_html=True)
 
-                # Check if selected
-                is_selected = st.session_state.selected_image == image_name
+        # Create scrollable container using st.container with height
+        with st.container(height=500):
+            if filtered_items:
+                # Display all filtered items in the scrollable container
+                for item in filtered_items:
+                    image_name = item['image_name']
+                    compliance = item['compliance_assessment']
+                    has_comment = bool(item.get('review_comment'))
 
-                # Create status indicators
-                compliance_icon = "✅" if compliance else "❌"
+                    # Check if selected
+                    is_selected = st.session_state.selected_image == image_name
 
-                # Create clickable button with conditional styling
-                if is_selected:
-                    st.markdown(f"""
-                    <div style="background-color: #2196f3; color: white; padding: 8px 12px;
-                                margin: 2px 0; border-radius: 5px; border: 2px solid #1976d2;">
-                        # <strong>📷 {image_name}</strong><br>
-                        <small>{compliance_icon}</small>
-                    </div>
-                    """, unsafe_allow_html=True)
-                else:
-                    # Create button with status indicators
-                    button_text = f"{image_name} {compliance_icon}"
-                    if st.button(button_text, key=f"btn_{image_name}", use_container_width=True):
-                        st.session_state.selected_image = image_name
-                        st.rerun()
-        else:
-            st.info("No items found")
-        
-        # Show current range
-        if page_items:
-            st.caption(f"Showing {start_idx + 1}-{end_idx} of {total_items}")
+                    # Create status indicators
+                    compliance_icon = "✅" if compliance else "❌"
+
+                    # Create clickable button with conditional styling
+                    if is_selected:
+                        st.markdown(f"""
+                        <div style="background-color: #2196f3; color: white; padding: 8px 12px;
+                                    margin: 2px 0; border-radius: 5px; border: 2px solid #1976d2;">
+                            <strong>📷 {image_name}</strong><br>
+                            <small>{compliance_icon}</small>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    else:
+                        # Create button with status indicators
+                        button_text = f"{image_name} {compliance_icon}"
+                        if st.button(button_text, key=f"btn_{image_name}", use_container_width=True):
+                            st.session_state.selected_image = image_name
+                            st.rerun()
+            else:
+                st.info("No items found")
     
     # Column 2: Image Display
     with col2:
