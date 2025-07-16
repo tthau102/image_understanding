@@ -253,10 +253,10 @@ with tab1:
                     # Create clickable button with conditional styling
                     if is_selected:
                         st.markdown(f"""
-                        <div style="background-color: #2196f3; color: white; padding: 8px 12px;
-                                    margin: 2px 0; border-radius: 5px; border: 2px solid #1976d2;">
-                            <strong>📷 {image_name}</strong><br>
-                            <small>{compliance_icon}</small>
+                        <div style="background-color: #2196f3; color: white; padding: 10px 16px;
+                                    margin: 2px 0; border-radius: 6px; border: 1px solid #ddd;
+                                    text-align: center; font-size: 16px;">
+                            {image_name} {compliance_icon}
                         </div>
                         """, unsafe_allow_html=True)
                     else:
