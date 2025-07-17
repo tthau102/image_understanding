@@ -1,0 +1,18 @@
+# =============================================================================
+# CONFIGURATION FILE - PLANOGRAM COMPLIANCE REVIEW
+# =============================================================================
+
+# S3 Configuration
+S3_REGION = "aws-region"  # Change to your AWS region
+
+# PostgreSQL Database Configuration
+DB_CONFIG = {
+    "host": "your-db-host.com",        # CHANGE THIS
+    "port": 5432,
+    "database": "your-db",        # CHANGE THIS
+    "user": "your_username",           # CHANGE THIS
+    "password": "your_password",       # CHANGE THIS
+}
+
+# Logging Configuration
+LOG_LEVEL = "INFO"
