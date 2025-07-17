@@ -157,7 +157,7 @@ with col1:
         st.rerun()
     
     # Scrollable image list
-    with st.container(height=500):
+    with st.container(height=800):
         if filtered_items:
             for item in filtered_items:
                 image_name = item['image_name']
