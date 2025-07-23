@@ -31,3 +31,4 @@ CSV_ENCODING = 'utf-8'
 
 # Logging Configuration
 LOG_LEVEL = "INFO"
+LABEL_STUDIO_API_TOKEN = ""

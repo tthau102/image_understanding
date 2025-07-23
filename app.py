@@ -4,6 +4,8 @@ import json
 import pandas as pd
 from rag_processor import RAGProcessor
 from data_ops import get_db_connection, get_pending_review_items, generate_presigned_url
+import requests
+import boto3
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -93,9 +95,9 @@ st.markdown('<h1 class="main-header">📊 Planogram Compliance</h1>', unsafe_all
 st.markdown('<p style="text-align: center; color: #666;">Review System and Data Ingestion</p>', unsafe_allow_html=True)
 
 # Create tabs
-tab1, tab2 = st.tabs(["🔍 Review", "📊 RAG Data Ingestion", ])
+tab1, tab2, tab3 = st.tabs(["🔍 Review", "📊 RAG Data Ingestion", "📥 Import"])
 
-# Tab 2: Review
+# Tab 1: Review
 with tab1:
     # Add CSS to remove scroll bars from Review tab and columns
     st.markdown("""
@@ -440,7 +442,7 @@ with tab1:
             </div>
             """, unsafe_allow_html=True)
 
-# Tab 1: RAG Data Ingestion
+# Tab 2: RAG Data Ingestion
 with tab2:
     st.markdown("### Upload CSV and Images for Processing")
 
@@ -626,6 +628,89 @@ with tab2:
                 </div>
                 ''', unsafe_allow_html=True)
 
+
+# Tab 3: Import from Label Studio
+with tab3:
+    st.markdown("### 📥 Import Projects from Label Studio")
+    # Lấy token từ config nếu có
+    try:
+        from config import LABEL_STUDIO_API_TOKEN
+    except ImportError:
+        from config_sample import LABEL_STUDIO_API_TOKEN
+    token = LABEL_STUDIO_API_TOKEN
+    if 'ls_projects' not in st.session_state:
+        st.session_state.ls_projects = None
+    if 'ls_error' not in st.session_state:
+        st.session_state.ls_error = None
+    # Khi vào tab, tự động fetch project nếu chưa có
+    if st.session_state.ls_projects is None and st.session_state.ls_error is None:
+        headers = {}
+        if token:
+            headers["Authorization"] = f"Token {token}"
+        try:
+            response = requests.get("http://54.254.237.128:8080/api/projects", headers=headers)
+            if response.status_code == 200:
+                data = response.json()
+                if isinstance(data, dict) and 'results' in data:
+                    st.session_state.ls_projects = data['results']
+                else:
+                    st.session_state.ls_projects = data
+                st.session_state.ls_error = None
+            elif response.status_code == 401:
+                st.session_state.ls_projects = None
+                st.session_state.ls_error = "API Error 401: Authentication credentials were not provided. Vui lòng nhập API Token của bạn ở config.py!"
+            else:
+                st.session_state.ls_projects = None
+                st.session_state.ls_error = f"API Error: {response.status_code} - {response.text}"
+        except Exception as e:
+            st.session_state.ls_projects = None
+            st.session_state.ls_error = f"Exception: {str(e)}"
+    # Hiển thị kết quả
+    if st.session_state.ls_error:
+        st.error(st.session_state.ls_error)
+    elif st.session_state.ls_projects is not None:
+        if isinstance(st.session_state.ls_projects, list) and st.session_state.ls_projects:
+            project_titles = [proj.get('title') or proj.get('name') or str(proj.get('id')) for proj in st.session_state.ls_projects]
+            # Selectbox nhỏ lại bằng cách đặt vào cột nhỏ
+            col1, col2 = st.columns([1, 5])
+            with col1:
+                selected_title = st.selectbox(
+                    "",
+                    options=project_titles,
+                    index=None,
+                    placeholder="Label Studio Project",
+                    key="ls_project_selectbox"
+                )
+            # Khi chọn project, placeholder sẽ đổi thành tên project đã chọn
+            if selected_title:
+                st.session_state.selected_project_title = selected_title
+            # Lấy project đã chọn
+            selected_project = None
+            if hasattr(st.session_state, 'selected_project_title'):
+                for proj in st.session_state.ls_projects:
+                    if (proj.get('title') or proj.get('name') or str(proj.get('id'))) == st.session_state.selected_project_title:
+                        selected_project = proj
+                        break
+            # Nút Sync
+            if st.button("Sync"):
+                if selected_project:
+                    lambda_client = boto3.client('lambda')
+                    try:
+                        response = lambda_client.invoke(
+                            FunctionName='MLPipelineStack-ExportAnnotationLambda2FBC2D72-MnrlgY50X7ZK',
+                            InvocationType='RequestResponse',
+                            Payload=json.dumps({"project_id": selected_project.get('id')})
+                        )
+                        result_payload = response['Payload'].read().decode('utf-8')
+                        st.success(f"Lambda response: {result_payload}")
+                    except Exception as e:
+                        st.error(f"Lỗi khi gọi Lambda: {str(e)}")
+                else:
+                    st.warning("Vui lòng chọn một project trước khi Sync.")
+        elif isinstance(st.session_state.ls_projects, list):
+            st.info("No projects found.")
+        else:
+            st.write(st.session_state.ls_projects)
 
 # Footer
 st.markdown("---")
