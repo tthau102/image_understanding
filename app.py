@@ -694,7 +694,7 @@ with tab3:
             # Nút Sync
             if st.button("Sync"):
                 if selected_project:
-                    lambda_client = boto3.client('lambda')
+                    lambda_client = boto3.client('lambda', region_name='ap-southeast-1')
                     try:
                         response = lambda_client.invoke(
                             FunctionName='MLPipelineStack-ExportAnnotationLambda2FBC2D72-MnrlgY50X7ZK',
