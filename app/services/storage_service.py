@@ -1,191 +1,199 @@
+"""
+Image processing and storage service for Planogram Compliance application.
+Handles image uploads, validation, and Label Studio integration workflow.
+"""
 import logging
 from typing import List, Dict, Tuple
-import time
-
-from utils import validate_csv_file, validate_images, match_csv_with_images
-from data_ops import create_s3_folder, upload_csv_to_s3, process_image_record
+from datetime import datetime
+from app.config import config
+from app.services.data_ops import S3Service
+from app.services.labelstudio_service import LabelStudioService
+from app.utils.validators import ImageValidator
 
 # Setup logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-class RAGProcessor:
-    """Main processor for RAG data ingestion workflow"""
+class ImageProcessor:
+    """Main processor for image upload and Label Studio integration workflow"""
     
     def __init__(self):
+        self.s3_service = S3Service()
+        self.ls_service = LabelStudioService()
+        self.validator = ImageValidator()
+        
         self.processing_results = {
-            'total_records': 0,
-            'successful': 0,
-            'failed': 0,
-            'skipped': 0,
+            'total_images': 0,
+            'upload_successful': 0,
+            'upload_failed': 0,
+            'import_successful': False,
+            'task_count': 0,
             'processing_time': 0,
             'errors': [],
-            'success_items': [],
-            'skipped_items': [],
             's3_folder': '',
-            'csv_s3_url': ''
+            'storage_id': None
         }
     
-    def validate_inputs(self, csv_file, uploaded_images) -> Tuple[bool, str]:
+    def validate_inputs(self, uploaded_images: List, project_id: int) -> Tuple[bool, str]:
         """
-        Validate CSV and images inputs
+        Validate images and project selection
         
+        Args:
+            uploaded_images: List of Streamlit uploaded file objects
+            project_id: Selected Label Studio project ID
+            
         Returns:
             (is_valid, error_message)
         """
         logger.info("🔍 Starting input validation...")
         
-        # Validate CSV
-        csv_valid, csv_error, self.df = validate_csv_file(csv_file)
-        if not csv_valid:
-            return False, f"CSV Error: {csv_error}"
+        # Validate project selection
+        if not project_id:
+            return False, "Please select a Label Studio project"
         
-        # Validate Images
-        images_valid, images_error, self.validated_images = validate_images(uploaded_images)
+        # Validate images
+        if not uploaded_images:
+            return False, "Please upload at least one image"
+        
+        # Validate each image
+        images_valid, images_error = self.validator.validate_images(uploaded_images)
         if not images_valid:
-            return False, f"Images Error: {images_error}"
+            return False, f"Image validation failed: {images_error}"
         
-        logger.info("✅ Input validation completed successfully")
+        logger.info(f"✅ Input validation completed: {len(uploaded_images)} images, project {project_id}")
         return True, "Validation passed"
     
-    def match_data(self) -> Tuple[bool, str]:
+    def upload_images_to_s3(self, uploaded_images: List, project_id: int) -> Tuple[bool, str]:
         """
-        Match CSV records with images
+        Upload images to S3 in project-specific folder
         
-        Returns:
-            (has_matches, status_message)
-        """
-        logger.info("🔗 Starting CSV-Image matching...")
-        
-        self.matched_records, self.missing_items = match_csv_with_images(
-            self.df, self.validated_images
-        )
-        
-        if not self.matched_records:
-            return False, "No matching records found between CSV and images"
-        
-        # Store missing items in results
-        self.processing_results['errors'].extend(self.missing_items)
-        
-        logger.info(f"✅ Matching completed: {len(self.matched_records)} records ready for processing")
-        return True, f"Found {len(self.matched_records)} matching records"
-    
-    def setup_s3_storage(self, csv_file) -> Tuple[bool, str]:
-        """
-        Create S3 folder and upload CSV
-        
+        Args:
+            uploaded_images: List of validated image files
+            project_id: Label Studio project ID
+            
         Returns:
             (success, status_message)
         """
         try:
-            logger.info("☁️ Setting up S3 storage...")
+            logger.info(f"☁️ Starting S3 upload for {len(uploaded_images)} images...")
             
-            # Create timestamped S3 folder
-            self.s3_folder = create_s3_folder()
-            self.processing_results['s3_folder'] = self.s3_folder
+            # Upload images in batch
+            upload_results = self.s3_service.upload_images_batch(uploaded_images, project_id)
             
-            # Upload CSV to S3
-            csv_s3_url = upload_csv_to_s3(csv_file, self.s3_folder)
-            self.processing_results['csv_s3_url'] = csv_s3_url
+            # Update processing results
+            self.processing_results.update({
+                'total_images': upload_results['total_images'],
+                'upload_successful': upload_results['successful'],
+                'upload_failed': upload_results['failed'],
+                's3_folder': upload_results['s3_folder'],
+                'processing_time': upload_results['processing_time']
+            })
             
-            logger.info(f"✅ S3 setup completed: {self.s3_folder}")
-            return True, f"S3 folder created: {self.s3_folder}"
+            # Add any upload errors
+            self.processing_results['errors'].extend(upload_results['errors'])
             
+            if upload_results['successful'] > 0:
+                success_msg = f"Uploaded {upload_results['successful']}/{upload_results['total_images']} images to S3"
+                logger.info(f"✅ {success_msg}")
+                return True, success_msg
+            else:
+                failure_msg = "No images were uploaded successfully"
+                logger.error(f"❌ {failure_msg}")
+                return False, failure_msg
+                
         except Exception as e:
-            error_msg = f"S3 setup failed: {str(e)}"
+            error_msg = f"S3 upload failed: {str(e)}"
             logger.error(f"❌ {error_msg}")
+            self.processing_results['errors'].append(error_msg)
             return False, error_msg
     
-    def process_records(self) -> Tuple[bool, str]: 
+    def sync_with_labelstudio(self, project_id: int) -> Tuple[bool, str]:
         """
-        Process all matched records: embeddings + S3 + DB
+        Create S3 storage connection and sync with Label Studio
         
+        Args:
+            project_id: Label Studio project ID
+            
         Returns:
             (success, status_message)
         """
-        start_time = time.time()
-        logger.info(f"🚀 Starting processing of {len(self.matched_records)} records...")
-        
-        self.processing_results['total_records'] = len(self.matched_records)
-        
-        for i, record in enumerate(self.matched_records, 1):
-            logger.info(f"Processing record {i}/{len(self.matched_records)}: {record['image_name']}")
+        try:
+            logger.info(f"🔄 Starting Label Studio integration for project {project_id}...")
             
-            try:
-                success, error_msg = process_image_record(record, self.s3_folder)
-
-                if success:
-                    if error_msg == "Skipped - Already exists":
-                        self.processing_results['skipped'] += 1
-                        self.processing_results['skipped_items'].append(record['image_name'])
-                        logger.info(f"⏭️ [{i}/{len(self.matched_records)}] Skipped: {record['image_name']} (already exists)")
-                    else:
-                        self.processing_results['successful'] += 1
-                        self.processing_results['success_items'].append(record['image_name'])
-                        logger.info(f"✅ [{i}/{len(self.matched_records)}] Success: {record['image_name']}")
-                else:
-                    self.processing_results['failed'] += 1
-                    self.processing_results['errors'].append(f"{record['image_name']}: {error_msg}")
-                    logger.error(f"❌ [{i}/{len(self.matched_records)}] Failed: {record['image_name']} - {error_msg}")
-
-            except Exception as e:
-                self.processing_results['failed'] += 1
-                error_msg = f"{record['image_name']}: Unexpected error - {str(e)}"
+            # Import images to Label Studio
+            import_result = self.ls_service.import_images_to_project(
+                project_id, 
+                self.processing_results['s3_folder']
+            )
+            
+            if import_result['success']:
+                # Update processing results
+                self.processing_results.update({
+                    'import_successful': True,
+                    'task_count': import_result['task_count'],
+                    'storage_id': import_result['storage_id']
+                })
+                
+                success_msg = f"Successfully imported {import_result['task_count']} tasks to Label Studio"
+                logger.info(f"✅ {success_msg}")
+                return True, success_msg
+            else:
+                error_msg = f"Label Studio import failed: {import_result['error']}"
+                logger.error(f"❌ {error_msg}")
                 self.processing_results['errors'].append(error_msg)
-                logger.error(f"❌ [{i}/{len(self.matched_records)}] Exception: {error_msg}")
-        
-        # Calculate processing time
-        self.processing_results['processing_time'] = round(time.time() - start_time, 2)
-        
-        # Determine overall success
-        processed_count = self.processing_results['successful'] + self.processing_results['skipped']
-        if processed_count > 0:
-            success_msg = f"Processing completed: {self.processing_results['successful']} new, {self.processing_results['skipped']} skipped, {self.processing_results['failed']} failed"
-            logger.info(f"✅ {success_msg}")
-            return True, success_msg
-        else:
-            failure_msg = "Processing failed: No records were processed successfully"
-            logger.error(f"❌ {failure_msg}")
-            return False, failure_msg
+                return False, error_msg
+                
+        except Exception as e:
+            error_msg = f"Label Studio sync failed: {str(e)}"
+            logger.error(f"❌ {error_msg}")
+            self.processing_results['errors'].append(error_msg)
+            return False, error_msg
     
-    def run_full_workflow(self, csv_file, uploaded_images) -> Dict:
+    def run_full_workflow(self, uploaded_images: List, project_id: int) -> Dict:
         """
-        Run complete RAG data ingestion workflow
+        Run complete image processing and Label Studio integration workflow
         
+        Args:
+            uploaded_images: List of Streamlit uploaded file objects
+            project_id: Selected Label Studio project ID
+            
         Returns:
-            processing_results: Dict with complete results
+            processing_results: Dict with complete workflow results
         """
-        logger.info("🎯 Starting RAG Data Ingestion Workflow...")
+        start_time = datetime.now()
+        logger.info("🎯 Starting Image Processing Workflow...")
         
         try:
             # Step 1: Validate inputs
-            valid, error = self.validate_inputs(csv_file, uploaded_images)
+            valid, error = self.validate_inputs(uploaded_images, project_id)
             if not valid:
                 self.processing_results['errors'].append(f"Validation Error: {error}")
                 return self.processing_results
             
-            # Step 2: Match CSV with images
-            has_matches, match_msg = self.match_data()
-            if not has_matches:
-                self.processing_results['errors'].append(f"Matching Error: {match_msg}")
+            # Step 2: Upload images to S3
+            upload_success, upload_msg = self.upload_images_to_s3(uploaded_images, project_id)
+            if not upload_success:
+                self.processing_results['errors'].append(f"Upload Error: {upload_msg}")
                 return self.processing_results
             
-            # Step 3: Setup S3 storage
-            s3_success, s3_msg = self.setup_s3_storage(csv_file)
-            if not s3_success:
-                self.processing_results['errors'].append(f"S3 Error: {s3_msg}")
-                return self.processing_results
+            # Step 3: Sync with Label Studio
+            sync_success, sync_msg = self.sync_with_labelstudio(project_id)
+            if not sync_success:
+                self.processing_results['errors'].append(f"Sync Error: {sync_msg}")
+                # Note: S3 upload was successful, so this is partial success
             
-            # Step 4: Process all records
-            process_success, process_msg = self.process_records()
+            # Calculate total processing time
+            total_time = (datetime.now() - start_time).total_seconds()
+            self.processing_results['processing_time'] = round(total_time, 2)
             
             # Final summary
-            logger.info("🏁 RAG Data Ingestion Workflow Completed!")
-            logger.info(f"📊 Results Summary:")
-            logger.info(f"   Total Records: {self.processing_results['total_records']}")
-            logger.info(f"   Successful: {self.processing_results['successful']}")
-            logger.info(f"   Skipped: {self.processing_results['skipped']}")
-            logger.info(f"   Failed: {self.processing_results['failed']}")
+            if self.processing_results['import_successful']:
+                logger.info("🎉 Complete workflow finished successfully!")
+            else:
+                logger.warning("⚠️ Workflow completed with issues")
+            
+            logger.info(f"📊 Final Results:")
+            logger.info(f"   Images Uploaded: {self.processing_results['upload_successful']}/{self.processing_results['total_images']}")
+            logger.info(f"   Label Studio Tasks: {self.processing_results['task_count']}")
             logger.info(f"   Processing Time: {self.processing_results['processing_time']}s")
             logger.info(f"   S3 Folder: {self.processing_results['s3_folder']}")
             
@@ -196,3 +204,19 @@ class RAGProcessor:
             logger.error(f"❌ {error_msg}")
             self.processing_results['errors'].append(error_msg)
             return self.processing_results
+    
+    def get_workflow_summary(self) -> str:
+        """
+        Get human-readable summary of workflow results
+        
+        Returns:
+            summary: Formatted summary string
+        """
+        results = self.processing_results
+        
+        if results['import_successful']:
+            return f"✅ Success: {results['upload_successful']} images uploaded, {results['task_count']} tasks created in Label Studio"
+        elif results['upload_successful'] > 0:
+            return f"⚠️ Partial: {results['upload_successful']} images uploaded to S3, but Label Studio sync failed"
+        else:
+            return f"❌ Failed: No images processed successfully"
