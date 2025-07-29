@@ -2,7 +2,6 @@ import streamlit as st
 import logging
 import json
 import pandas as pd
-from rag_processor import RAGProcessor
 from data_ops import get_db_connection, get_pending_review_items, generate_presigned_url
 import requests
 import boto3
@@ -113,6 +112,8 @@ except ImportError:
 # Initialize S3 client
 s3_client = boto3.client('s3', region_name=S3_REGION)
 
+
+
 def upload_image_to_s3(image_file, bucket_name, folder_prefix="uploaded_images"):
     """
     Upload single image to S3 bucket (private)
@@ -126,15 +127,71 @@ def upload_image_to_s3(image_file, bucket_name, folder_prefix="uploaded_images")
         s3_url: S3 URL of uploaded image (private)
         s3_key: S3 key of the uploaded file
     """
-
+    try:
+        # Generate unique filename with timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"{timestamp}_{image_file.name}"
+        s3_key = f"{folder_prefix}/{filename}"
+        
+        # Reset file pointer
+        image_file.seek(0)
+        
+        # Upload to S3 with proper content type
+        content_type = "image/jpeg" if image_file.name.lower().endswith(('.jpg', '.jpeg')) else "image/png"
+        
+        s3_client.upload_fileobj(
+            image_file,
+            bucket_name,
+            s3_key,
+            ExtraArgs={
+                'ContentType': content_type,
+                'ServerSideEncryption': 'AES256'
+            }
+        )
+        
+        s3_url = f"https://{bucket_name}.s3.{S3_REGION}.amazonaws.com/{s3_key}"
+        logger.info(f"✅ Uploaded to S3: {filename}")
+        
+        return s3_url, s3_key
+        
+    except Exception as e:
+        logger.error(f"❌ S3 upload failed for {image_file.name}: {str(e)}")
+        raise
 
 def trigger_labelstudio_storage_sync(project_id, api_token, base_url):
     """
     Trigger Label Studio storage sync to detect new S3 files
-    Fixed version with proper error handling and API endpoint detection
     """
+    try:
+        headers = {"Authorization": f"Token {api_token}"}
+        sync_url = f"{base_url}/api/storages/s3"
+        
+        # Get storage configurations
+        response = requests.get(sync_url, headers=headers)
+        if response.status_code != 200:
+            return False, {"details": f"Failed to get storage configs: {response.status_code}"}
+        
+        storages = response.json()
+        if not storages:
+            return False, {"details": "No S3 storage configured"}
+        
+        # Trigger sync for first storage
+        storage_id = storages[0]['id']
+        sync_trigger_url = f"{sync_url}/{storage_id}/sync"
+        
+        sync_response = requests.post(sync_trigger_url, headers=headers)
+        
+        if sync_response.status_code in [200, 201]:
+            logger.info(f"✅ Storage sync triggered successfully")
+            return True, {"status": "success"}
+        else:
+            return False, {"details": f"Sync failed: {sync_response.status_code}"}
+            
+    except Exception as e:
+        logger.error(f"❌ Storage sync error: {str(e)}")
+        return False, {"details": str(e)}
 
-    
+
     
 # Main header
 st.markdown('<h1 class="main-header">📊 Planogram Compliance</h1>', unsafe_allow_html=True)

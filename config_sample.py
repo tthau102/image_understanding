@@ -1,41 +1,27 @@
 # =============================================================================
-# CONFIGURATION FILE - EASY TO EDIT
+# CONFIGURATION FILE - PLANOGRAM COMPLIANCE REVIEW
 # =============================================================================
  
 # S3 Configuration
-S3_BUCKET_NAME = ""  # CHANGE THIS
-S3_FOLDER_PREFIX = ""  # Folder naming: RAG_Update_<timestamp>
-S3_REGION = ""
+S3_BUCKET_NAME = ""        # CHANGE THIS
+S3_REGION = ""             # CHANGE THIS
  
 # PostgreSQL Database Configuration
 DB_CONFIG = {
     "host": "",
     "port": 5432,
     "database": "",
-    "user": "",      # CHANGE THIS
-    "password": "",  # CHANGE THIS
+    "user": "",            # CHANGE THIS
+    "password": "",        # CHANGE THIS
 }
  
 # Table Configuration
-DB_TABLE = ""
-DB_RESULT = ''
-
-# AWS Bedrock Configuration
-BEDROCK_REGION = ""  # Region for Titan embedding model
-EMBEDDING_MODEL = ""
-EMBEDDING_DIMENSION = 1024
- 
-# File Processing Configuration
-SUPPORTED_IMAGE_FORMATS = ['png', 'jpg', 'jpeg']
-MAX_FILE_SIZE_MB = 200
-CSV_ENCODING = 'utf-8'
- 
-# Logging Configuration
-LOG_LEVEL = "INFO"
+DB_RESULT = ""             # CHANGE THIS - results table name
 
 # Label Studio Configuration
-LABEL_STUDIO_API_TOKEN = ""  # CHANGE THIS
-LABEL_STUDIO_BASE_URL = ""  # CHANGE THIS
-LABEL_STUDIO_PROJECT_ID = ""  # CHANGE THIS - ID của project để sync image vào
+LABEL_STUDIO_API_TOKEN = ""     # CHANGE THIS
+LABEL_STUDIO_BASE_URL = ""      # CHANGE THIS  
+LABEL_STUDIO_PROJECT_ID = ""    # CHANGE THIS - ID của project để sync image vào
 
-
+# Logging Configuration
+LOG_LEVEL = "INFO"
