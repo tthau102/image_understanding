@@ -94,8 +94,8 @@ st.markdown("""
 st.markdown('<h1 class="main-header">📊 Planogram Compliance</h1>', unsafe_allow_html=True)
 st.markdown('<p style="text-align: center; color: #666;">Review System and Data Ingestion</p>', unsafe_allow_html=True)
 
-# Create tabs
-tab1, tab2, tab3 = st.tabs(["🔍 Review", "📊 RAG Data Ingestion", "📥 Import"])
+# Create tabs - Chỉ còn 2 tabs
+tab1, tab2 = st.tabs(["🔍 Review", "📊 RAG Data Ingestion"])
 
 # Tab 1: Review
 with tab1:
@@ -386,25 +386,8 @@ with tab1:
                             df_shelves = pd.DataFrame(shelves_data)
                             st.dataframe(df_shelves, use_container_width=True, hide_index=True)
 
-                            # # Display summary
-                            # total_products = total_joco + total_abben + total_boncha
-                            # st.markdown(f"""
-                            # <div style="margin-top: 15px; padding: 10px; background-color: #f8f9fa;
-                            #             border-radius: 5px; font-size: 14px;">
-                            #     📈 <strong>Summary:</strong><br>
-                            #     • Total Products: <strong>{total_products}</strong><br>
-                            #     • Joco: <strong>{total_joco}</strong><br>
-                            #     • Abben: <strong>{total_abben}</strong><br>
-                            #     • Boncha: <strong>{total_boncha}</strong><br>
-                            #     • Across <strong>{total_shelves}</strong> shelves
-                            # </div>
-                            # """, unsafe_allow_html=True)
                         else:
                             st.warning("⚠️ No shelves data found in the expected format")
-
-                        # # Show raw JSON data in expandable section
-                        # with st.expander("📄 View Raw JSON Data"):
-                        #     st.json(product_data)
 
                     except json.JSONDecodeError as e:
                         st.error(f"❌ Invalid JSON format: {str(e)}")
@@ -444,273 +427,140 @@ with tab1:
 
 # Tab 2: RAG Data Ingestion
 with tab2:
-    st.markdown("### Upload CSV and Images for Processing")
+    st.markdown("### RAG Data Ingestion & Label Studio Import")
 
-    # Layout: Two columns for upload, full width for results
+    # Layout: Two columns
     col1, col2 = st.columns([1, 1])
 
-    # Upload CSV section
+    # Column 1: Label Studio Import (thay thế logic cũ)
     with col1:
         st.markdown('<div class="upload-section">', unsafe_allow_html=True)
-        st.subheader("📄 Upload CSV File")
-        st.markdown("*Required columns: image_name, description*")
+        st.subheader("📥 Export Annotations from LS")
+        
+        # Lấy token từ config nếu có
+        try:
+            from config import LABEL_STUDIO_API_TOKEN
+        except ImportError:
+            from config_sample import LABEL_STUDIO_API_TOKEN
+        token = LABEL_STUDIO_API_TOKEN
+        
+        if 'ls_projects' not in st.session_state:
+            st.session_state.ls_projects = None
+        if 'ls_error' not in st.session_state:
+            st.session_state.ls_error = None
+        
+        # Khi vào tab, tự động fetch project nếu chưa có
+        if st.session_state.ls_projects is None and st.session_state.ls_error is None:
+            headers = {}
+            if token:
+                headers["Authorization"] = f"Token {token}"
+            try:
+                response = requests.get("http://54.254.237.128:8080/api/projects", headers=headers)
+                if response.status_code == 200:
+                    data = response.json()
+                    if isinstance(data, dict) and 'results' in data:
+                        st.session_state.ls_projects = data['results']
+                    else:
+                        st.session_state.ls_projects = data
+                    st.session_state.ls_error = None
+                elif response.status_code == 401:
+                    st.session_state.ls_projects = None
+                    st.session_state.ls_error = "API Error 401: Authentication credentials were not provided. Vui lòng nhập API Token của bạn ở config.py!"
+                else:
+                    st.session_state.ls_projects = None
+                    st.session_state.ls_error = f"API Error: {response.status_code} - {response.text}"
+            except Exception as e:
+                st.session_state.ls_projects = None
+                st.session_state.ls_error = f"Exception: {str(e)}"
+        
+        # Hiển thị kết quả
+        if st.session_state.ls_error:
+            st.error(st.session_state.ls_error)
+        elif st.session_state.ls_projects is not None:
+            if isinstance(st.session_state.ls_projects, list) and st.session_state.ls_projects:
+                project_titles = [proj.get('title') or proj.get('name') or str(proj.get('id')) for proj in st.session_state.ls_projects]
+                
+                selected_title = st.selectbox(
+                    "Chọn Label Studio Project:",
+                    options=project_titles,
+                    index=None,
+                    placeholder="Select a project...",
+                    key="ls_project_selectbox"
+                )
+                
+                # Khi chọn project, placeholder sẽ đổi thành tên project đã chọn
+                if selected_title:
+                    st.session_state.selected_project_title = selected_title
+                
+                # Lấy project đã chọn
+                selected_project = None
+                if hasattr(st.session_state, 'selected_project_title'):
+                    for proj in st.session_state.ls_projects:
+                        if (proj.get('title') or proj.get('name') or str(proj.get('id'))) == st.session_state.selected_project_title:
+                            selected_project = proj
+                            break
+                
+                # Nút Export Labels
+                if st.button("🚀 Export Labels", type="primary", use_container_width=True):
+                    if selected_project:
+                        lambda_client = boto3.client('lambda', region_name='ap-southeast-1')
+                        try:
+                            with st.spinner("🔄 Exporting labels..."):
+                                response = lambda_client.invoke(
+                                    FunctionName='MLPipelineStack-ExportAnnotationLambda2FBC2D72-MnrlgY50X7ZK',
+                                    InvocationType='RequestResponse',
+                                    Payload=json.dumps({"project_id": selected_project.get('id')})
+                                )
+                                result_payload = response['Payload'].read().decode('utf-8')
+                                st.success(f"✅ Export completed! Lambda response: {result_payload}")
+                        except Exception as e:
+                            st.error(f"❌ Lỗi khi gọi Lambda: {str(e)}")
+                    else:
+                        st.warning("⚠️ Vui lòng chọn một project trước khi Export.")
+            elif isinstance(st.session_state.ls_projects, list):
+                st.info("📝 No projects found.")
+            else:
+                st.write(st.session_state.ls_projects)
+        
+        st.markdown('</div>', unsafe_allow_html=True)
 
+    # Column 2: RAG Data Processing (giữ nguyên nhưng đơn giản hóa)
+    with col2:
+        st.markdown('<div class="upload-section">', unsafe_allow_html=True)
+        st.subheader("📊 RAG Data Processing")
+        st.markdown("*Feature temporarily bypassed*")
+        
+        # Bypass message
+        st.info("🚧 RAG Data Processing feature is temporarily disabled for maintenance.")
+        
+        # Placeholder upload sections (disabled)
         uploaded_csv = st.file_uploader(
             "Choose CSV file",
             type=["csv"],
-            key="csv_upload",
-            help="CSV file containing image descriptions with columns: image_name, value"
+            key="csv_upload_disabled",
+            help="This feature is temporarily disabled",
+            disabled=True
         )
-
-        if uploaded_csv:
-            st.success(f"✅ CSV uploaded: {uploaded_csv.name}")
-            st.info(f"File size: {uploaded_csv.size:,} bytes")
-
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    # Upload Images section
-    with col2:
-        st.markdown('<div class="upload-section">', unsafe_allow_html=True)
-        st.subheader("🖼️ Upload Images")
-        st.markdown("*Supported formats: PNG, JPG, JPEG*")
 
         uploaded_images = st.file_uploader(
             "Choose image files",
             type=["png", "jpg", "jpeg"],
             accept_multiple_files=True,
-            key="images_upload",
-            help="Image files named as <number>.jpg matching CSV image_name column"
+            key="images_upload_disabled",
+            help="This feature is temporarily disabled",
+            disabled=True
         )
 
-        if uploaded_images:
-            st.success(f"✅ Images uploaded: {len(uploaded_images)} files")
-
-            # # Show image preview
-            # if len(uploaded_images) <= 5:  # Only show preview for small sets
-            #     st.markdown("**Preview:**")
-            #     cols = st.columns(min(len(uploaded_images), 5))
-            #     for i, img in enumerate(uploaded_images[:5]):
-            #         with cols[i]:
-            #             st.image(img, caption=img.name, width=100)
-            # else:
-            #     st.info(f"Too many images to preview. Total: {len(uploaded_images)}")
-
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    # Processing section
-    st.markdown("---")
-
-    # Process button
-    col_btn1, col_btn2, col_btn3 = st.columns([1, 1, 1])
-    with col_btn2:
+        # Disabled process button
         process_button = st.button(
             "🚀 Start Processing",
-            type="primary",
+            type="secondary",
             use_container_width=True,
-            disabled=not (uploaded_csv and uploaded_images)
+            disabled=True,
+            help="Feature temporarily disabled"
         )
-
-    # Results section
-    if process_button:
-        if not uploaded_csv or not uploaded_images:
-            st.error("❌ Please upload both CSV file and images before processing")
-        else:
-            # Initialize processor
-            processor = RAGProcessor()
-
-            # Show processing status
-            with st.spinner("🔄 Processing RAG data ingestion..."):
-                # Run workflow
-                results = processor.run_full_workflow(uploaded_csv, uploaded_images)
-
-            st.markdown("---")
-            st.subheader("📊 Processing Results")
         
-            # Results statistics
-            if results['total_records'] > 0:
-                st.markdown('<div class="stats-container">', unsafe_allow_html=True)
-
-                col_stat1, col_stat2, col_stat3, col_stat4, col_stat5 = st.columns(5)
-
-                with col_stat1:
-                    st.markdown(f'''
-                    <div class="stat-box">
-                        <div class="stat-number">{results['total_records']}</div>
-                        <div>Total Records</div>
-                    </div>
-                    ''', unsafe_allow_html=True)
-
-                with col_stat2:
-                    st.markdown(f'''
-                    <div class="stat-box">
-                        <div class="stat-number" style="color: #28a745;">{results['successful']}</div>
-                        <div>Successful</div>
-                    </div>
-                    ''', unsafe_allow_html=True)
-
-                with col_stat3:
-                    st.markdown(f'''
-                    <div class="stat-box">
-                        <div class="stat-number" style="color: #ffc107;">{results.get('skipped', 0)}</div>
-                        <div>Skipped</div>
-                    </div>
-                    ''', unsafe_allow_html=True)
-
-                with col_stat4:
-                    st.markdown(f'''
-                    <div class="stat-box">
-                        <div class="stat-number" style="color: #dc3545;">{results['failed']}</div>
-                        <div>Failed</div>
-                    </div>
-                    ''', unsafe_allow_html=True)
-
-                with col_stat5:
-                    st.markdown(f'''
-                    <div class="stat-box">
-                        <div class="stat-number">{results['processing_time']}s</div>
-                        <div>Processing Time</div>
-                    </div>
-                    ''', unsafe_allow_html=True)
-
-                st.markdown('</div>', unsafe_allow_html=True)
-        
-            # Success summary
-            processed_count = results['successful'] + results.get('skipped', 0)
-            if processed_count > 0:
-                st.markdown(f'''
-                <div class="result-success">
-                    <h4>✅ Processing Completed!</h4>
-                    <p><strong>New records processed:</strong> {results['successful']}/{results['total_records']}</p>
-                    <p><strong>Skipped (already exist):</strong> {results.get('skipped', 0)}/{results['total_records']}</p>
-                    <p><strong>S3 Folder:</strong> {results['s3_folder']}</p>
-                    <p><strong>Processing Time:</strong> {results['processing_time']} seconds</p>
-                </div>
-                ''', unsafe_allow_html=True)
-
-                # Show successful items
-                if results['success_items']:
-                    with st.expander(f"✅ View New Items ({len(results['success_items'])})"):
-                        for item in results['success_items']:
-                            st.write(f"• {item}")
-
-            # Show skipped items
-            if results.get('skipped_items'):
-                st.markdown(f'''
-                <div class="result-warning">
-                    <h4>⏭️ Skipped Items ({len(results['skipped_items'])})</h4>
-                    <p>These images already exist in the database and were skipped:</p>
-                </div>
-                ''', unsafe_allow_html=True)
-
-                with st.expander(f"⏭️ View Skipped Items ({len(results['skipped_items'])})"):
-                    for item in results['skipped_items']:
-                        st.write(f"• {item}")
-        
-            # Errors and warnings
-            if results['errors']:
-                st.markdown(f'''
-                <div class="result-warning">
-                    <h4>⚠️ Issues Found ({len(results['errors'])})</h4>
-                    <p>Some items could not be processed. See details below:</p>
-                </div>
-                ''', unsafe_allow_html=True)
-
-                with st.expander(f"⚠️ View Issues ({len(results['errors'])})"):
-                    for error in results['errors']:
-                        st.write(f"• {error}")
-
-            # Complete failure case
-            if results['successful'] == 0 and results.get('skipped', 0) == 0 and results['total_records'] == 0:
-                st.markdown('''
-                <div class="result-error">
-                    <h4>❌ Processing Failed</h4>
-                    <p>No records could be processed. Please check your files and try again.</p>
-                </div>
-                ''', unsafe_allow_html=True)
-
-
-# Tab 3: Import from Label Studio
-with tab3:
-    st.markdown("### 📥 Import Projects from Label Studio")
-    # Lấy token từ config nếu có
-    try:
-        from config import LABEL_STUDIO_API_TOKEN
-    except ImportError:
-        from config_sample import LABEL_STUDIO_API_TOKEN
-    token = LABEL_STUDIO_API_TOKEN
-    if 'ls_projects' not in st.session_state:
-        st.session_state.ls_projects = None
-    if 'ls_error' not in st.session_state:
-        st.session_state.ls_error = None
-    # Khi vào tab, tự động fetch project nếu chưa có
-    if st.session_state.ls_projects is None and st.session_state.ls_error is None:
-        headers = {}
-        if token:
-            headers["Authorization"] = f"Token {token}"
-        try:
-            response = requests.get("http://54.254.237.128:8080/api/projects", headers=headers)
-            if response.status_code == 200:
-                data = response.json()
-                if isinstance(data, dict) and 'results' in data:
-                    st.session_state.ls_projects = data['results']
-                else:
-                    st.session_state.ls_projects = data
-                st.session_state.ls_error = None
-            elif response.status_code == 401:
-                st.session_state.ls_projects = None
-                st.session_state.ls_error = "API Error 401: Authentication credentials were not provided. Vui lòng nhập API Token của bạn ở config.py!"
-            else:
-                st.session_state.ls_projects = None
-                st.session_state.ls_error = f"API Error: {response.status_code} - {response.text}"
-        except Exception as e:
-            st.session_state.ls_projects = None
-            st.session_state.ls_error = f"Exception: {str(e)}"
-    # Hiển thị kết quả
-    if st.session_state.ls_error:
-        st.error(st.session_state.ls_error)
-    elif st.session_state.ls_projects is not None:
-        if isinstance(st.session_state.ls_projects, list) and st.session_state.ls_projects:
-            project_titles = [proj.get('title') or proj.get('name') or str(proj.get('id')) for proj in st.session_state.ls_projects]
-            # Selectbox nhỏ lại bằng cách đặt vào cột nhỏ
-            col1, col2 = st.columns([1, 5])
-            with col1:
-                selected_title = st.selectbox(
-                    "",
-                    options=project_titles,
-                    index=None,
-                    placeholder="Label Studio Project",
-                    key="ls_project_selectbox"
-                )
-            # Khi chọn project, placeholder sẽ đổi thành tên project đã chọn
-            if selected_title:
-                st.session_state.selected_project_title = selected_title
-            # Lấy project đã chọn
-            selected_project = None
-            if hasattr(st.session_state, 'selected_project_title'):
-                for proj in st.session_state.ls_projects:
-                    if (proj.get('title') or proj.get('name') or str(proj.get('id'))) == st.session_state.selected_project_title:
-                        selected_project = proj
-                        break
-            # Nút Sync
-            if st.button("Export Labels"):
-                if selected_project:
-                    lambda_client = boto3.client('lambda', region_name='ap-southeast-1')
-                    try:
-                        response = lambda_client.invoke(
-                            FunctionName='MLPipelineStack-ExportAnnotationLambda2FBC2D72-MnrlgY50X7ZK',
-                            InvocationType='RequestResponse',
-                            Payload=json.dumps({"project_id": selected_project.get('id')})
-                        )
-                        result_payload = response['Payload'].read().decode('utf-8')
-                        st.success(f"Lambda response: {result_payload}")
-                    except Exception as e:
-                        st.error(f"Lỗi khi gọi Lambda: {str(e)}")
-                else:
-                    st.warning("Vui lòng chọn một project trước khi Sync.")
-        elif isinstance(st.session_state.ls_projects, list):
-            st.info("No projects found.")
-        else:
-            st.write(st.session_state.ls_projects)
+        st.markdown('</div>', unsafe_allow_html=True)
 
 # Footer
 st.markdown("---")
