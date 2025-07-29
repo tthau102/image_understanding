@@ -115,7 +115,7 @@ s3_client = boto3.client('s3', region_name=S3_REGION)
 
 def upload_image_to_s3(image_file, bucket_name, folder_prefix="uploaded_images"):
     """
-    Upload single image to S3 bucket
+    Upload single image to S3 bucket (private)
     
     Args:
         image_file: Streamlit uploaded file
@@ -123,7 +123,8 @@ def upload_image_to_s3(image_file, bucket_name, folder_prefix="uploaded_images")
         folder_prefix: S3 folder prefix
         
     Returns:
-        s3_url: Public S3 URL of uploaded image
+        s3_url: S3 URL of uploaded image (private)
+        s3_key: S3 key of the uploaded file
     """
     try:
         # Create timestamped filename
@@ -134,18 +135,17 @@ def upload_image_to_s3(image_file, bucket_name, folder_prefix="uploaded_images")
         # Reset file pointer
         image_file.seek(0)
         
-        # Upload to S3 with public-read ACL
+        # Upload to S3 as private (no ACL)
         s3_client.upload_fileobj(
             image_file, 
             bucket_name, 
             s3_key,
             ExtraArgs={
-                'ContentType': f'image/{file_extension}',
-                'ACL': 'public-read'
+                'ContentType': f'image/{file_extension}'
             }
         )
         
-        # Generate public URL
+        # Generate S3 URL (Label Studio will handle access via its own credentials)
         s3_url = f"https://{bucket_name}.s3.{S3_REGION}.amazonaws.com/{s3_key}"
         logger.info(f"✅ Uploaded to S3: {s3_key}")
         
@@ -155,13 +155,11 @@ def upload_image_to_s3(image_file, bucket_name, folder_prefix="uploaded_images")
         logger.error(f"❌ S3 upload failed for {image_file.name}: {str(e)}")
         raise
 
-def sync_image_to_labelstudio(s3_url, image_name, project_id, api_token, base_url):
+def trigger_labelstudio_storage_sync(project_id, api_token, base_url):
     """
-    Sync uploaded image from S3 to Label Studio project
+    Trigger Label Studio storage sync to detect new S3 files
     
     Args:
-        s3_url: Public S3 URL of the image
-        image_name: Name of the image
         project_id: Label Studio project ID
         api_token: Label Studio API token
         base_url: Label Studio base URL
@@ -176,32 +174,39 @@ def sync_image_to_labelstudio(s3_url, image_name, project_id, api_token, base_ur
             "Content-Type": "application/json"
         }
         
-        # Prepare task data for Label Studio
-        task_data = {
-            "data": {
-                "image": s3_url
-            },
-            "meta": {
-                "image_name": image_name,
-                "uploaded_at": datetime.now().isoformat(),
-                "source": "s3_upload"
-            }
-        }
+        # First, get storage configurations for the project
+        storage_url = f"{base_url}/api/projects/{project_id}/storages"
+        storage_response = requests.get(storage_url, headers=headers)
         
-        # Import task to Label Studio project
-        import_url = f"{base_url}/api/projects/{project_id}/import"
-        response = requests.post(
-            import_url,
-            headers=headers,
-            json=[task_data]
-        )
-        
-        if response.status_code in [200, 201]:
-            logger.info(f"✅ Successfully synced to Label Studio: {image_name}")
-            return True, response.json()
+        if storage_response.status_code == 200:
+            storages = storage_response.json()
+            
+            # Find S3 source storage
+            s3_storage = None
+            for storage in storages:
+                if storage.get('type') == 'aws_s3' and storage.get('title') == 'tth-tmp-s3':
+                    s3_storage = storage
+                    break
+            
+            if s3_storage:
+                # Trigger sync for the S3 storage
+                storage_id = s3_storage['id']
+                sync_url = f"{base_url}/api/storages/s3/{storage_id}/sync"
+                
+                sync_response = requests.post(sync_url, headers=headers)
+                
+                if sync_response.status_code in [200, 201]:
+                    logger.info(f"✅ Successfully triggered storage sync for project {project_id}")
+                    return True, sync_response.json()
+                else:
+                    logger.error(f"❌ Storage sync failed: {sync_response.status_code} - {sync_response.text}")
+                    return False, {"error": f"Sync API Error: {sync_response.status_code}", "details": sync_response.text}
+            else:
+                logger.warning("⚠️ S3 storage not found, trying direct import approach")
+                return True, {"message": "S3 storage auto-scan should detect new files"}
         else:
-            logger.error(f"❌ Label Studio sync failed: {response.status_code} - {response.text}")
-            return False, {"error": f"API Error: {response.status_code}", "details": response.text}
+            logger.error(f"❌ Failed to get storage configurations: {storage_response.status_code}")
+            return False, {"error": f"Storage API Error: {storage_response.status_code}", "details": storage_response.text}
             
     except Exception as e:
         logger.error(f"❌ Label Studio sync exception: {str(e)}")
@@ -212,7 +217,7 @@ st.markdown('<h1 class="main-header">📊 Planogram Compliance</h1>', unsafe_all
 st.markdown('<p style="text-align: center; color: #666;">Review System and Data Ingestion</p>', unsafe_allow_html=True)
 
 # Create tabs - Chỉ còn 2 tabs
-tab1, tab2 = st.tabs(["🔍 Review", "📊 RAG Data Ingestion"])
+tab1, tab2 = st.tabs(["🔍 Review", "📊 Label Studio"])
 
 # Tab 1: Review
 with tab1:
@@ -641,7 +646,7 @@ with tab2:
     with col2:
         st.markdown('<div class="upload-section">', unsafe_allow_html=True)
         st.subheader("🖼️ Upload Images to Label Studio")
-        st.markdown("*Upload images to S3 and sync to Label Studio*")
+        st.markdown("*Upload images to S3 bucket - Label Studio will auto-detect via storage sync*")
 
         # Display current configuration
         st.info(f"**S3 Bucket:** {S3_BUCKET_NAME}")
@@ -710,24 +715,29 @@ with tab2:
                         )
                         upload_results['successful_uploads'] += 1
                         
-                        # Step 2: Sync to Label Studio
-                        sync_success, sync_response = sync_image_to_labelstudio(
-                            s3_url,
-                            image_file.name,
+                    except Exception as e:
+                        upload_results['failed_uploads'] += 1
+                        upload_results['errors'].append(f"Upload failed for {image_file.name}: {str(e)}")
+
+                # Step 2: Trigger Label Studio storage sync (once for all uploaded images)
+                if upload_results['successful_uploads'] > 0:
+                    try:
+                        status_text.text("Triggering Label Studio storage sync...")
+                        sync_success, sync_response = trigger_labelstudio_storage_sync(
                             LABEL_STUDIO_PROJECT_ID,
                             LABEL_STUDIO_API_TOKEN,
                             LABEL_STUDIO_BASE_URL
                         )
                         
                         if sync_success:
-                            upload_results['successful_syncs'] += 1
+                            upload_results['successful_syncs'] = upload_results['successful_uploads']
                         else:
-                            upload_results['failed_syncs'] += 1
-                            upload_results['errors'].append(f"Sync failed for {image_file.name}: {sync_response.get('details', 'Unknown error')}")
+                            upload_results['failed_syncs'] = upload_results['successful_uploads']
+                            upload_results['errors'].append(f"Storage sync failed: {sync_response.get('details', 'Unknown error')}")
                             
                     except Exception as e:
-                        upload_results['failed_uploads'] += 1
-                        upload_results['errors'].append(f"Upload failed for {image_file.name}: {str(e)}")
+                        upload_results['failed_syncs'] = upload_results['successful_uploads']
+                        upload_results['errors'].append(f"Storage sync exception: {str(e)}")
 
                 # Clear progress indicators
                 progress_bar.empty()
@@ -757,10 +767,11 @@ with tab2:
                     ''', unsafe_allow_html=True)
 
                 with col_stat3:
+                    sync_status = "✅" if upload_results['successful_syncs'] > 0 else ("⚠️" if upload_results['successful_uploads'] > 0 else "❌")
                     st.markdown(f'''
                     <div class="stat-box">
-                        <div class="stat-number" style="color: #007bff;">{upload_results['successful_syncs']}</div>
-                        <div>LS Syncs</div>
+                        <div class="stat-number" style="color: #007bff;">{sync_status}</div>
+                        <div>LS Sync</div>
                     </div>
                     ''', unsafe_allow_html=True)
 
@@ -778,7 +789,17 @@ with tab2:
                     <div class="result-success">
                         <h4>✅ Upload & Sync Completed!</h4>
                         <p><strong>Successfully uploaded to S3:</strong> {upload_results['successful_uploads']}/{upload_results['total_images']}</p>
-                        <p><strong>Successfully synced to Label Studio:</strong> {upload_results['successful_syncs']}/{upload_results['total_images']}</p>
+                        <p><strong>Storage sync triggered:</strong> Label Studio will detect new images automatically</p>
+                        <p><small>💡 Check Label Studio project for new tasks (may take a few moments)</small></p>
+                    </div>
+                    ''', unsafe_allow_html=True)
+                elif upload_results['successful_uploads'] > 0:
+                    st.markdown(f'''
+                    <div class="result-warning">
+                        <h4>⚠️ Partial Success</h4>
+                        <p><strong>Successfully uploaded to S3:</strong> {upload_results['successful_uploads']}/{upload_results['total_images']}</p>
+                        <p><strong>Storage sync failed:</strong> Images uploaded but sync trigger failed</p>
+                        <p><small>💡 Try triggering sync manually in Label Studio or wait for auto-scan</small></p>
                     </div>
                     ''', unsafe_allow_html=True)
 
