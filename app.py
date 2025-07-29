@@ -6,6 +6,7 @@ from rag_processor import RAGProcessor
 from data_ops import get_db_connection, get_pending_review_items, generate_presigned_url
 import requests
 import boto3
+from datetime import datetime
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -89,6 +90,122 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
+
+# Configuration for Image Upload & Label Studio Sync
+try:
+    from config import (
+        LABEL_STUDIO_API_TOKEN, 
+        S3_BUCKET_NAME, 
+        S3_REGION,
+        LABEL_STUDIO_PROJECT_ID,
+        LABEL_STUDIO_BASE_URL
+    )
+except ImportError:
+    # Fallback to sample config
+    from config_sample import (
+        LABEL_STUDIO_API_TOKEN,
+        S3_BUCKET_NAME, 
+        S3_REGION,
+        LABEL_STUDIO_PROJECT_ID,
+        LABEL_STUDIO_BASE_URL
+    )
+
+# Initialize S3 client
+s3_client = boto3.client('s3', region_name=S3_REGION)
+
+def upload_image_to_s3(image_file, bucket_name, folder_prefix="uploaded_images"):
+    """
+    Upload single image to S3 bucket
+    
+    Args:
+        image_file: Streamlit uploaded file
+        bucket_name: S3 bucket name
+        folder_prefix: S3 folder prefix
+        
+    Returns:
+        s3_url: Public S3 URL of uploaded image
+    """
+    try:
+        # Create timestamped filename
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        file_extension = image_file.name.split('.')[-1].lower()
+        s3_key = f"{folder_prefix}/{timestamp}_{image_file.name}"
+        
+        # Reset file pointer
+        image_file.seek(0)
+        
+        # Upload to S3 with public-read ACL
+        s3_client.upload_fileobj(
+            image_file, 
+            bucket_name, 
+            s3_key,
+            ExtraArgs={
+                'ContentType': f'image/{file_extension}',
+                'ACL': 'public-read'
+            }
+        )
+        
+        # Generate public URL
+        s3_url = f"https://{bucket_name}.s3.{S3_REGION}.amazonaws.com/{s3_key}"
+        logger.info(f"✅ Uploaded to S3: {s3_key}")
+        
+        return s3_url, s3_key
+        
+    except Exception as e:
+        logger.error(f"❌ S3 upload failed for {image_file.name}: {str(e)}")
+        raise
+
+def sync_image_to_labelstudio(s3_url, image_name, project_id, api_token, base_url):
+    """
+    Sync uploaded image from S3 to Label Studio project
+    
+    Args:
+        s3_url: Public S3 URL of the image
+        image_name: Name of the image
+        project_id: Label Studio project ID
+        api_token: Label Studio API token
+        base_url: Label Studio base URL
+        
+    Returns:
+        success: Boolean indicating success
+        response_data: API response data
+    """
+    try:
+        headers = {
+            "Authorization": f"Token {api_token}",
+            "Content-Type": "application/json"
+        }
+        
+        # Prepare task data for Label Studio
+        task_data = {
+            "data": {
+                "image": s3_url
+            },
+            "meta": {
+                "image_name": image_name,
+                "uploaded_at": datetime.now().isoformat(),
+                "source": "s3_upload"
+            }
+        }
+        
+        # Import task to Label Studio project
+        import_url = f"{base_url}/api/projects/{project_id}/import"
+        response = requests.post(
+            import_url,
+            headers=headers,
+            json=[task_data]
+        )
+        
+        if response.status_code in [200, 201]:
+            logger.info(f"✅ Successfully synced to Label Studio: {image_name}")
+            return True, response.json()
+        else:
+            logger.error(f"❌ Label Studio sync failed: {response.status_code} - {response.text}")
+            return False, {"error": f"API Error: {response.status_code}", "details": response.text}
+            
+    except Exception as e:
+        logger.error(f"❌ Label Studio sync exception: {str(e)}")
+        return False, {"error": "Exception", "details": str(e)}
 
 # Main header
 st.markdown('<h1 class="main-header">📊 Planogram Compliance</h1>', unsafe_allow_html=True)
@@ -427,21 +544,17 @@ with tab1:
 
 # Tab 2: RAG Data Ingestion
 with tab2:
-    st.markdown("### RAG Data Ingestion & Label Studio Import")
+    st.markdown("### Image Upload & Label Studio Sync")
 
     # Layout: Two columns
     col1, col2 = st.columns([1, 1])
 
-    # Column 1: Label Studio Import (thay thế logic cũ)
+    # Column 1: Label Studio Import (từ Tab 3 cũ)
     with col1:
         st.markdown('<div class="upload-section">', unsafe_allow_html=True)
-        st.subheader("📥 Export Annotations from LS")
+        st.subheader("📥 Import from Label Studio")
         
         # Lấy token từ config nếu có
-        try:
-            from config import LABEL_STUDIO_API_TOKEN
-        except ImportError:
-            from config_sample import LABEL_STUDIO_API_TOKEN
         token = LABEL_STUDIO_API_TOKEN
         
         if 'ls_projects' not in st.session_state:
@@ -455,7 +568,7 @@ with tab2:
             if token:
                 headers["Authorization"] = f"Token {token}"
             try:
-                response = requests.get("http://54.254.237.128:8080/api/projects", headers=headers)
+                response = requests.get(f"{LABEL_STUDIO_BASE_URL}/api/projects", headers=headers)
                 if response.status_code == 200:
                     data = response.json()
                     if isinstance(data, dict) and 'results' in data:
@@ -524,42 +637,163 @@ with tab2:
         
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # Column 2: RAG Data Processing (giữ nguyên nhưng đơn giản hóa)
+    # Column 2: Image Upload & Sync to Label Studio
     with col2:
         st.markdown('<div class="upload-section">', unsafe_allow_html=True)
-        st.subheader("📊 RAG Data Processing")
-        st.markdown("*Feature temporarily bypassed*")
-        
-        # Bypass message
-        st.info("🚧 RAG Data Processing feature is temporarily disabled for maintenance.")
-        
-        # Placeholder upload sections (disabled)
-        uploaded_csv = st.file_uploader(
-            "Choose CSV file",
-            type=["csv"],
-            key="csv_upload_disabled",
-            help="This feature is temporarily disabled",
-            disabled=True
-        )
+        st.subheader("🖼️ Upload Images to Label Studio")
+        st.markdown("*Upload images to S3 and sync to Label Studio*")
 
+        # Display current configuration
+        st.info(f"**S3 Bucket:** {S3_BUCKET_NAME}")
+        st.info(f"**Label Studio Project ID:** {LABEL_STUDIO_PROJECT_ID}")
+
+        # Upload Images section
         uploaded_images = st.file_uploader(
             "Choose image files",
             type=["png", "jpg", "jpeg"],
             accept_multiple_files=True,
-            key="images_upload_disabled",
-            help="This feature is temporarily disabled",
-            disabled=True
+            key="images_upload",
+            help="Select images to upload to S3 and sync to Label Studio"
         )
 
-        # Disabled process button
-        process_button = st.button(
-            "🚀 Start Processing",
-            type="secondary",
+        if uploaded_images:
+            st.success(f"✅ Images selected: {len(uploaded_images)} files")
+            
+            # Show image preview (max 5 images)
+            if len(uploaded_images) <= 5:
+                st.markdown("**Preview:**")
+                cols = st.columns(min(len(uploaded_images), 5))
+                for i, img in enumerate(uploaded_images[:5]):
+                    with cols[i]:
+                        st.image(img, caption=img.name, width=100)
+            else:
+                st.info(f"Too many images to preview. Total: {len(uploaded_images)}")
+
+        # Processing section
+        st.markdown("---")
+
+        # Upload button
+        upload_button = st.button(
+            "🚀 Start Upload",
+            type="primary",
             use_container_width=True,
-            disabled=True,
-            help="Feature temporarily disabled"
+            disabled=not uploaded_images
         )
-        
+
+        # Upload and sync process
+        if upload_button:
+            if not uploaded_images:
+                st.error("❌ Please select images before uploading")
+            else:
+                upload_results = {
+                    'total_images': len(uploaded_images),
+                    'successful_uploads': 0,
+                    'successful_syncs': 0,
+                    'failed_uploads': 0,
+                    'failed_syncs': 0,
+                    'errors': []
+                }
+
+                progress_bar = st.progress(0)
+                status_text = st.empty()
+
+                for i, image_file in enumerate(uploaded_images):
+                    progress = (i + 1) / len(uploaded_images)
+                    progress_bar.progress(progress)
+                    status_text.text(f"Processing {i+1}/{len(uploaded_images)}: {image_file.name}")
+
+                    try:
+                        # Step 1: Upload to S3
+                        s3_url, s3_key = upload_image_to_s3(
+                            image_file, 
+                            S3_BUCKET_NAME
+                        )
+                        upload_results['successful_uploads'] += 1
+                        
+                        # Step 2: Sync to Label Studio
+                        sync_success, sync_response = sync_image_to_labelstudio(
+                            s3_url,
+                            image_file.name,
+                            LABEL_STUDIO_PROJECT_ID,
+                            LABEL_STUDIO_API_TOKEN,
+                            LABEL_STUDIO_BASE_URL
+                        )
+                        
+                        if sync_success:
+                            upload_results['successful_syncs'] += 1
+                        else:
+                            upload_results['failed_syncs'] += 1
+                            upload_results['errors'].append(f"Sync failed for {image_file.name}: {sync_response.get('details', 'Unknown error')}")
+                            
+                    except Exception as e:
+                        upload_results['failed_uploads'] += 1
+                        upload_results['errors'].append(f"Upload failed for {image_file.name}: {str(e)}")
+
+                # Clear progress indicators
+                progress_bar.empty()
+                status_text.empty()
+
+                # Display results
+                st.markdown("---")
+                st.subheader("📊 Upload Results")
+
+                # Results statistics
+                col_stat1, col_stat2, col_stat3, col_stat4 = st.columns(4)
+
+                with col_stat1:
+                    st.markdown(f'''
+                    <div class="stat-box">
+                        <div class="stat-number">{upload_results['total_images']}</div>
+                        <div>Total Images</div>
+                    </div>
+                    ''', unsafe_allow_html=True)
+
+                with col_stat2:
+                    st.markdown(f'''
+                    <div class="stat-box">
+                        <div class="stat-number" style="color: #28a745;">{upload_results['successful_uploads']}</div>
+                        <div>S3 Uploads</div>
+                    </div>
+                    ''', unsafe_allow_html=True)
+
+                with col_stat3:
+                    st.markdown(f'''
+                    <div class="stat-box">
+                        <div class="stat-number" style="color: #007bff;">{upload_results['successful_syncs']}</div>
+                        <div>LS Syncs</div>
+                    </div>
+                    ''', unsafe_allow_html=True)
+
+                with col_stat4:
+                    st.markdown(f'''
+                    <div class="stat-box">
+                        <div class="stat-number" style="color: #dc3545;">{len(upload_results['errors'])}</div>
+                        <div>Errors</div>
+                    </div>
+                    ''', unsafe_allow_html=True)
+
+                # Success/Error messages
+                if upload_results['successful_syncs'] > 0:
+                    st.markdown(f'''
+                    <div class="result-success">
+                        <h4>✅ Upload & Sync Completed!</h4>
+                        <p><strong>Successfully uploaded to S3:</strong> {upload_results['successful_uploads']}/{upload_results['total_images']}</p>
+                        <p><strong>Successfully synced to Label Studio:</strong> {upload_results['successful_syncs']}/{upload_results['total_images']}</p>
+                    </div>
+                    ''', unsafe_allow_html=True)
+
+                if upload_results['errors']:
+                    st.markdown(f'''
+                    <div class="result-error">
+                        <h4>❌ Errors Found ({len(upload_results['errors'])})</h4>
+                        <p>Some issues occurred during the process:</p>
+                    </div>
+                    ''', unsafe_allow_html=True)
+
+                    with st.expander(f"❌ View Errors ({len(upload_results['errors'])})"):
+                        for error in upload_results['errors']:
+                            st.write(f"• {error}")
+
         st.markdown('</div>', unsafe_allow_html=True)
 
 # Footer
