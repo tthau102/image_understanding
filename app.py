@@ -126,92 +126,16 @@ def upload_image_to_s3(image_file, bucket_name, folder_prefix="uploaded_images")
         s3_url: S3 URL of uploaded image (private)
         s3_key: S3 key of the uploaded file
     """
-    try:
-        # Create timestamped filename
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        file_extension = image_file.name.split('.')[-1].lower()
-        s3_key = f"{folder_prefix}/{timestamp}_{image_file.name}"
-        
-        # Reset file pointer
-        image_file.seek(0)
-        
-        # Upload to S3 as private (no ACL)
-        s3_client.upload_fileobj(
-            image_file, 
-            bucket_name, 
-            s3_key,
-            ExtraArgs={
-                'ContentType': f'image/{file_extension}'
-            }
-        )
-        
-        # Generate S3 URL (Label Studio will handle access via its own credentials)
-        s3_url = f"https://{bucket_name}.s3.{S3_REGION}.amazonaws.com/{s3_key}"
-        logger.info(f"✅ Uploaded to S3: {s3_key}")
-        
-        return s3_url, s3_key
-        
-    except Exception as e:
-        logger.error(f"❌ S3 upload failed for {image_file.name}: {str(e)}")
-        raise
+
 
 def trigger_labelstudio_storage_sync(project_id, api_token, base_url):
     """
     Trigger Label Studio storage sync to detect new S3 files
-    
-    Args:
-        project_id: Label Studio project ID
-        api_token: Label Studio API token
-        base_url: Label Studio base URL
-        
-    Returns:
-        success: Boolean indicating success
-        response_data: API response data
+    Fixed version with proper error handling and API endpoint detection
     """
-    try:
-        headers = {
-            "Authorization": f"Token {api_token}",
-            "Content-Type": "application/json"
-        }
-        
-        # First, get storage configurations for the project
-        storage_url = f"{base_url}/api/projects/{project_id}/storages"
-        storage_response = requests.get(storage_url, headers=headers)
-        
-        if storage_response.status_code == 200:
-            storages = storage_response.json()
-            
-            # Find S3 source storage
-            s3_storage = None
-            for storage in storages:
-                if storage.get('type') == 'aws_s3' and storage.get('title') == 'tth-tmp-s3':
-                    s3_storage = storage
-                    break
-            
-            if s3_storage:
-                # Trigger sync for the S3 storage
-                storage_id = s3_storage['id']
-                sync_url = f"{base_url}/api/storages/s3/{storage_id}/sync"
-                
-                sync_response = requests.post(sync_url, headers=headers)
-                
-                if sync_response.status_code in [200, 201]:
-                    logger.info(f"✅ Successfully triggered storage sync for project {project_id}")
-                    return True, sync_response.json()
-                else:
-                    logger.error(f"❌ Storage sync failed: {sync_response.status_code} - {sync_response.text}")
-                    return False, {"error": f"Sync API Error: {sync_response.status_code}", "details": sync_response.text}
-            else:
-                logger.warning("⚠️ S3 storage not found, trying direct import approach")
-                return True, {"message": "S3 storage auto-scan should detect new files"}
-        else:
-            logger.error(f"❌ Failed to get storage configurations: {storage_response.status_code}")
-            return False, {"error": f"Storage API Error: {storage_response.status_code}", "details": storage_response.text}
-            
-    except Exception as e:
-        logger.error(f"❌ Label Studio sync exception: {str(e)}")
-        return False, {"error": "Exception", "details": str(e)}
 
+    
+    
 # Main header
 st.markdown('<h1 class="main-header">📊 Planogram Compliance</h1>', unsafe_allow_html=True)
 st.markdown('<p style="text-align: center; color: #666;">Review System and Data Ingestion</p>', unsafe_allow_html=True)

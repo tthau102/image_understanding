@@ -19,6 +19,7 @@ DB_CONFIG = {
 # Table Configuration
 DB_TABLE = ""
 DB_RESULT = ''
+
 # AWS Bedrock Configuration
 BEDROCK_REGION = ""  # Region for Titan embedding model
 EMBEDDING_MODEL = ""
@@ -31,4 +32,10 @@ CSV_ENCODING = 'utf-8'
  
 # Logging Configuration
 LOG_LEVEL = "INFO"
-LABEL_STUDIO_API_TOKEN = ""
+
+# Label Studio Configuration
+LABEL_STUDIO_API_TOKEN = ""  # CHANGE THIS
+LABEL_STUDIO_BASE_URL = ""  # CHANGE THIS
+LABEL_STUDIO_PROJECT_ID = ""  # CHANGE THIS - ID của project để sync image vào
+
+
