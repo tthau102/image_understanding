@@ -591,104 +591,11 @@ with tab1:
 
 # Tab 2: RAG Data Ingestion
 with tab2:
-    st.markdown("### Image Upload & Label Studio Sync")
-
     # Layout: Two columns
     col1, col2 = st.columns([1, 1])
 
-    # Column 1: Label Studio Import (từ Tab 3 cũ)
     with col1:
-        st.markdown('<div class="upload-section">', unsafe_allow_html=True)
-        st.subheader("📥 Import from Label Studio")
-        
-        # Lấy token từ config nếu có
-        token = LABEL_STUDIO_API_TOKEN
-        
-        if 'ls_projects' not in st.session_state:
-            st.session_state.ls_projects = None
-        if 'ls_error' not in st.session_state:
-            st.session_state.ls_error = None
-        
-        # Khi vào tab, tự động fetch project nếu chưa có
-        if st.session_state.ls_projects is None and st.session_state.ls_error is None:
-            headers = {}
-            if token:
-                headers["Authorization"] = f"Token {token}"
-            try:
-                response = requests.get(f"{LABEL_STUDIO_BASE_URL}/api/projects", headers=headers)
-                if response.status_code == 200:
-                    data = response.json()
-                    if isinstance(data, dict) and 'results' in data:
-                        st.session_state.ls_projects = data['results']
-                    else:
-                        st.session_state.ls_projects = data
-                    st.session_state.ls_error = None
-                elif response.status_code == 401:
-                    st.session_state.ls_projects = None
-                    st.session_state.ls_error = "API Error 401: Authentication credentials were not provided. Vui lòng nhập API Token của bạn ở config.py!"
-                else:
-                    st.session_state.ls_projects = None
-                    st.session_state.ls_error = f"API Error: {response.status_code} - {response.text}"
-            except Exception as e:
-                st.session_state.ls_projects = None
-                st.session_state.ls_error = f"Exception: {str(e)}"
-        
-        # Hiển thị kết quả
-        if st.session_state.ls_error:
-            st.error(st.session_state.ls_error)
-        elif st.session_state.ls_projects is not None:
-            if isinstance(st.session_state.ls_projects, list) and st.session_state.ls_projects:
-                project_titles = [proj.get('title') or proj.get('name') or str(proj.get('id')) for proj in st.session_state.ls_projects]
-                
-                selected_title = st.selectbox(
-                    "Chọn Label Studio Project:",
-                    options=project_titles,
-                    index=None,
-                    placeholder="Select a project...",
-                    key="ls_project_selectbox"
-                )
-                
-                # Khi chọn project, placeholder sẽ đổi thành tên project đã chọn
-                if selected_title:
-                    st.session_state.selected_project_title = selected_title
-                
-                # Lấy project đã chọn
-                selected_project = None
-                if hasattr(st.session_state, 'selected_project_title'):
-                    for proj in st.session_state.ls_projects:
-                        if (proj.get('title') or proj.get('name') or str(proj.get('id'))) == st.session_state.selected_project_title:
-                            selected_project = proj
-                            break
-                
-                # Nút Export Labels
-                if st.button("🚀 Export Labels", type="primary", use_container_width=True):
-                    if selected_project:
-                        lambda_client = boto3.client('lambda', region_name='ap-southeast-1')
-                        try:
-                            with st.spinner("🔄 Exporting labels..."):
-                                response = lambda_client.invoke(
-                                    FunctionName='MLPipelineStack-ExportAnnotationLambda2FBC2D72-MnrlgY50X7ZK',
-                                    InvocationType='RequestResponse',
-                                    Payload=json.dumps({"project_id": selected_project.get('id')})
-                                )
-                                result_payload = response['Payload'].read().decode('utf-8')
-                                st.success(f"✅ Export completed! Lambda response: {result_payload}")
-                        except Exception as e:
-                            st.error(f"❌ Lỗi khi gọi Lambda: {str(e)}")
-                    else:
-                        st.warning("⚠️ Vui lòng chọn một project trước khi Export.")
-            elif isinstance(st.session_state.ls_projects, list):
-                st.info("📝 No projects found.")
-            else:
-                st.write(st.session_state.ls_projects)
-        
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    # Column 2: Image Upload & Sync to Label Studio
-    with col2:
-        st.markdown('<div class="upload-section">', unsafe_allow_html=True)
         st.subheader("🖼️ Upload Images to Label Studio")
-        st.markdown("*Upload images to S3 bucket (source-s3-storage/ folder) - Label Studio will auto-detect via storage sync*")
 
         # Display current configuration
         st.info(f"**S3 Bucket:** {S3_BUCKET_NAME}/source-s3-storage/")
@@ -866,6 +773,92 @@ with tab2:
                             st.write(f"• {error}")
 
         st.markdown('</div>', unsafe_allow_html=True)
+
+    with col2:
+        st.subheader("📥 Export Annotations and Training")
+        
+        # Lấy token từ config nếu có
+        token = LABEL_STUDIO_API_TOKEN
+        
+        if 'ls_projects' not in st.session_state:
+            st.session_state.ls_projects = None
+        if 'ls_error' not in st.session_state:
+            st.session_state.ls_error = None
+        
+        # Khi vào tab, tự động fetch project nếu chưa có
+        if st.session_state.ls_projects is None and st.session_state.ls_error is None:
+            headers = {}
+            if token:
+                headers["Authorization"] = f"Token {token}"
+            try:
+                response = requests.get(f"{LABEL_STUDIO_BASE_URL}/api/projects", headers=headers)
+                if response.status_code == 200:
+                    data = response.json()
+                    if isinstance(data, dict) and 'results' in data:
+                        st.session_state.ls_projects = data['results']
+                    else:
+                        st.session_state.ls_projects = data
+                    st.session_state.ls_error = None
+                elif response.status_code == 401:
+                    st.session_state.ls_projects = None
+                    st.session_state.ls_error = "API Error 401: Authentication credentials were not provided. Vui lòng nhập API Token của bạn ở config.py!"
+                else:
+                    st.session_state.ls_projects = None
+                    st.session_state.ls_error = f"API Error: {response.status_code} - {response.text}"
+            except Exception as e:
+                st.session_state.ls_projects = None
+                st.session_state.ls_error = f"Exception: {str(e)}"
+        
+        # Hiển thị kết quả
+        if st.session_state.ls_error:
+            st.error(st.session_state.ls_error)
+        elif st.session_state.ls_projects is not None:
+            if isinstance(st.session_state.ls_projects, list) and st.session_state.ls_projects:
+                project_titles = [proj.get('title') or proj.get('name') or str(proj.get('id')) for proj in st.session_state.ls_projects]
+                
+                selected_title = st.selectbox(
+                    "Chọn Label Studio Project:",
+                    options=project_titles,
+                    index=None,
+                    placeholder="Select a project...",
+                    key="ls_project_selectbox"
+                )
+                
+                # Khi chọn project, placeholder sẽ đổi thành tên project đã chọn
+                if selected_title:
+                    st.session_state.selected_project_title = selected_title
+                
+                # Lấy project đã chọn
+                selected_project = None
+                if hasattr(st.session_state, 'selected_project_title'):
+                    for proj in st.session_state.ls_projects:
+                        if (proj.get('title') or proj.get('name') or str(proj.get('id'))) == st.session_state.selected_project_title:
+                            selected_project = proj
+                            break
+                
+                if st.button("🚀 Start", type="primary", use_container_width=True):
+                    if selected_project:
+                        lambda_client = boto3.client('lambda', region_name='ap-southeast-1')
+                        try:
+                            with st.spinner("🔄 Exporting annotations and training..."):
+                                response = lambda_client.invoke(
+                                    FunctionName='MLPipelineStack-ExportAnnotationLambda2FBC2D72-MnrlgY50X7ZK',
+                                    InvocationType='RequestResponse',
+                                    Payload=json.dumps({"project_id": selected_project.get('id')})
+                                )
+                                result_payload = response['Payload'].read().decode('utf-8')
+                                st.success(f"✅ Export completed! Lambda response: {result_payload}")
+                        except Exception as e:
+                            st.error(f"❌ Lỗi khi gọi Lambda: {str(e)}")
+                    else:
+                        st.warning("⚠️ Vui lòng chọn một project trước khi Export.")
+            elif isinstance(st.session_state.ls_projects, list):
+                st.info("📝 No projects found.")
+            else:
+                st.write(st.session_state.ls_projects)
+        
+        st.markdown('</div>', unsafe_allow_html=True)
+
 
 # Tab 3: Deploy endpoint
 with tab3:
