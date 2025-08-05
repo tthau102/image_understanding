@@ -906,28 +906,60 @@ with tab3:
             if st.button("🚀 Use Folder", type="primary", use_container_width=True):
                 if current_folder:
                     # Call Lambda function create_endpoint with folder name
-                    lambda_client = boto3.client('lambda', region_name='ap-southeast-1')
+                    # Configure Lambda client with extended timeout
+                    lambda_client = boto3.client(
+                        'lambda',
+                        region_name='ap-southeast-1',
+                        config=boto3.session.Config(
+                            read_timeout=300,  # 5 minutes
+                            connect_timeout=60,
+                            retries={'max_attempts': 0}  # Disable retries to avoid confusion
+                        )
+                    )
+
                     try:
-                        with st.spinner("🔄 Creating endpoint..."):
+                        with st.spinner("🔄 Creating endpoint... (This may take up to 5 minutes)"):
                             response = lambda_client.invoke(
                                 FunctionName='create_endpoint',
                                 InvocationType='RequestResponse',
                                 Payload=json.dumps({"train_folder": current_folder})
                             )
                             result_payload = response['Payload'].read().decode('utf-8')
-                            st.success(f"✅ Endpoint created successfully!")
 
-                            # Print the folder name and result
-                            st.markdown("#### 📋 Deployment Result")
-                            st.info(f"**Folder:** `{current_folder}`")
-                            st.code(current_folder, language="text")
+                            # Check if there was a function error
+                            if 'FunctionError' in response:
+                                st.error(f"❌ Lambda function error: {response['FunctionError']}")
+                                st.error(f"Response: {result_payload}")
+                            else:
+                                st.success(f"✅ Endpoint created successfully!")
 
-                            # Show Lambda response
-                            with st.expander("📄 Lambda Response"):
-                                st.json(json.loads(result_payload))
+                                # Print the folder name and result
+                                st.markdown("#### 📋 Deployment Result")
+                                st.info(f"**Folder:** `{current_folder}`")
+                                st.code(current_folder, language="text")
+
+                                # Show Lambda response
+                                with st.expander("📄 Lambda Response"):
+                                    try:
+                                        st.json(json.loads(result_payload))
+                                    except json.JSONDecodeError:
+                                        st.text(result_payload)
 
                     except Exception as e:
-                        st.error(f"❌ Lỗi khi gọi Lambda create_endpoint: {str(e)}")
+                        error_msg = str(e)
+                        if "timeout" in error_msg.lower() or "read timeout" in error_msg.lower():
+                            st.warning("⚠️ Request timeout - Lambda function may still be running")
+                            st.info(f"""
+                            **Lambda function đang chạy trong background:**
+                            - Function: create_endpoint
+                            - Folder: {current_folder}
+                            - Thời gian chạy dự kiến: ~3-4 phút
+
+                            💡 Bạn có thể check AWS Lambda console để xem trạng thái thực thi.
+                            """)
+                        else:
+                            st.error(f"❌ Lỗi khi gọi Lambda create_endpoint: {error_msg}")
+
                         # Still show the folder name even if Lambda fails
                         st.markdown("#### 📋 Selected Folder")
                         st.info(f"**Folder:** `{current_folder}`")
