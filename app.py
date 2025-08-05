@@ -112,6 +112,40 @@ except ImportError:
 # Initialize S3 client
 s3_client = boto3.client('s3', region_name=S3_REGION)
 
+def get_s3_folders(bucket_name, prefix):
+    """
+    Get list of folders in S3 bucket with given prefix
+
+    Args:
+        bucket_name: S3 bucket name
+        prefix: Folder prefix to search
+
+    Returns:
+        list: List of folder names
+    """
+    try:
+        response = s3_client.list_objects_v2(
+            Bucket=bucket_name,
+            Prefix=prefix,
+            Delimiter='/'
+        )
+
+        folders = []
+        if 'CommonPrefixes' in response:
+            for prefix_info in response['CommonPrefixes']:
+                folder_path = prefix_info['Prefix']
+                # Extract folder name (remove prefix and trailing slash)
+                folder_name = folder_path.replace(prefix, '').rstrip('/')
+                if folder_name:  # Only add non-empty folder names
+                    folders.append(folder_name)
+
+        logger.info(f"✅ Found {len(folders)} folders in {bucket_name}/{prefix}")
+        return folders
+
+    except Exception as e:
+        logger.error(f"❌ Failed to get S3 folders: {str(e)}")
+        return []
+
 
 
 def upload_image_to_s3(image_file, bucket_name, folder_prefix="uploaded_images"):
@@ -224,8 +258,8 @@ def trigger_labelstudio_storage_sync(project_id, api_token, base_url):
 st.markdown('<h1 class="main-header">📊 Planogram Compliance</h1>', unsafe_allow_html=True)
 st.markdown('<p style="text-align: center; color: #666;">Review System and Data Ingestion</p>', unsafe_allow_html=True)
 
-# Create tabs - Chỉ còn 2 tabs
-tab1, tab2 = st.tabs(["🔍 Review", "📊 Label Studio"])
+# Create tabs - Thêm tab Deploy endpoint
+tab1, tab2, tab3 = st.tabs(["🔍 Review", "📊 Label Studio", "🚀 Deploy endpoint"])
 
 # Tab 1: Review
 with tab1:
@@ -832,6 +866,90 @@ with tab2:
                             st.write(f"• {error}")
 
         st.markdown('</div>', unsafe_allow_html=True)
+
+# Tab 3: Deploy endpoint
+with tab3:
+    # Create layout with Deploy endpoint in a corner (left column)
+    col_deploy, col_empty = st.columns([1, 2])
+
+    with col_deploy:
+        st.markdown('<div class="upload-section">', unsafe_allow_html=True)
+        st.subheader("🚀 Deploy Endpoint")
+
+        # Initialize session state for selected folder
+        if 'selected_folder' not in st.session_state:
+            st.session_state.selected_folder = None
+        if 'folders_cache' not in st.session_state:
+            st.session_state.folders_cache = None
+
+        # Auto-load folders when entering tab (similar to Label Studio projects)
+        if st.session_state.folders_cache is None:
+            with st.spinner("🔍 Loading folders from S3..."):
+                st.session_state.folders_cache = get_s3_folders("uniben-data", "output_lambda/")
+
+        folders = st.session_state.folders_cache
+
+        # Display results similar to Label Studio tab
+        if folders:
+            # Selectbox for folder selection (similar to Label Studio project selection)
+            selected_folder = st.selectbox(
+                "Chọn folder từ S3 bucket:",
+                options=folders,
+                index=None,
+                placeholder="Select a folder...",
+                key="folder_selectbox"
+            )
+
+            # When folder is selected, update session state
+            if selected_folder:
+                st.session_state.selected_folder = selected_folder
+
+            # Get selected folder
+            current_folder = None
+            if hasattr(st.session_state, 'selected_folder') and st.session_state.selected_folder:
+                current_folder = st.session_state.selected_folder
+
+            # Use button (similar to Export Labels button)
+            if st.button("🚀 Use Folder", type="primary", use_container_width=True):
+                if current_folder:
+                    # Call Lambda function create_endpoint with folder name
+                    lambda_client = boto3.client('lambda', region_name='ap-southeast-1')
+                    try:
+                        with st.spinner("🔄 Creating endpoint..."):
+                            response = lambda_client.invoke(
+                                FunctionName='create_endpoint',
+                                InvocationType='RequestResponse',
+                                Payload=json.dumps({"folder_name": current_folder})
+                            )
+                            result_payload = response['Payload'].read().decode('utf-8')
+                            st.success(f"✅ Endpoint created successfully!")
+
+                            # Print the folder name and result
+                            st.markdown("#### 📋 Deployment Result")
+                            st.info(f"**Folder:** `{current_folder}`")
+                            st.code(current_folder, language="text")
+
+                            # Show Lambda response
+                            with st.expander("📄 Lambda Response"):
+                                st.json(json.loads(result_payload))
+
+                    except Exception as e:
+                        st.error(f"❌ Lỗi khi gọi Lambda create_endpoint: {str(e)}")
+                        # Still show the folder name even if Lambda fails
+                        st.markdown("#### 📋 Selected Folder")
+                        st.info(f"**Folder:** `{current_folder}`")
+                        st.code(current_folder, language="text")
+                else:
+                    st.warning("⚠️ Vui lòng chọn một folder trước khi sử dụng.")
+        else:
+            st.warning("⚠️ No folders found")
+            st.info("💡 Check AWS credentials")
+
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    with col_empty:
+        # Empty space or can be used for other content later
+        st.markdown("")
 
 # Footer
 st.markdown("---")
