@@ -919,7 +919,7 @@ with tab3:
                             response = lambda_client.invoke(
                                 FunctionName='create_endpoint',
                                 InvocationType='RequestResponse',
-                                Payload=json.dumps({"folder_name": current_folder})
+                                Payload=json.dumps({"train_folder": current_folder})
                             )
                             result_payload = response['Payload'].read().decode('utf-8')
                             st.success(f"✅ Endpoint created successfully!")
