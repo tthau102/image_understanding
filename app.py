@@ -1092,8 +1092,3 @@ with tab3:
 
 # Footer
 st.markdown("---")
-st.markdown("""
-<div style="text-align: center; color: #666; padding: 20px;">
-    <p>🔧 Configure settings in <code>config.py</code> | 📝 Check console logs for detailed information</p>
-</div>
-""", unsafe_allow_html=True)
