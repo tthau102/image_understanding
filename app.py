@@ -597,9 +597,104 @@ with tab2:
     with col1:
         st.subheader("🖼️ Upload Images to Label Studio")
 
-        # Display current configuration
-        st.info(f"**S3 Bucket:** {S3_BUCKET_NAME}/source-s3-storage/")
-        st.info(f"**Label Studio Project ID:** {LABEL_STUDIO_PROJECT_ID}")
+        # Project selection for upload
+        if 'upload_projects' not in st.session_state:
+            st.session_state.upload_projects = None
+        if 'selected_upload_project' not in st.session_state:
+            st.session_state.selected_upload_project = None
+        if 'project_bucket_info' not in st.session_state:
+            st.session_state.project_bucket_info = None
+        if 'upload_bucket_name' not in st.session_state:
+            st.session_state.upload_bucket_name = S3_BUCKET_NAME
+        if 'upload_folder_prefix' not in st.session_state:
+            st.session_state.upload_folder_prefix = "source-s3-storage"
+
+        # Auto-load projects if not loaded
+        if st.session_state.upload_projects is None:
+            token = LABEL_STUDIO_API_TOKEN
+            if token:
+                headers = {"Authorization": f"Token {token}"}
+                try:
+                    response = requests.get(f"{LABEL_STUDIO_BASE_URL}/api/projects", headers=headers)
+                    if response.status_code == 200:
+                        data = response.json()
+                        if isinstance(data, dict) and 'results' in data:
+                            st.session_state.upload_projects = data['results']
+                        else:
+                            st.session_state.upload_projects = data
+                    else:
+                        st.session_state.upload_projects = []
+                except Exception as e:
+                    st.session_state.upload_projects = []
+
+        # Project selection
+        if st.session_state.upload_projects:
+            project_titles = [proj.get('title') or proj.get('name') or str(proj.get('id')) for proj in st.session_state.upload_projects]
+
+            selected_project_title = st.selectbox(
+                "Select Label Studio Project:",
+                options=project_titles,
+                index=None,
+                placeholder="Choose project for upload...",
+                key="upload_project_selectbox"
+            )
+
+            if selected_project_title:
+                # Find selected project
+                selected_project = None
+                for proj in st.session_state.upload_projects:
+                    if (proj.get('title') or proj.get('name') or str(proj.get('id'))) == selected_project_title:
+                        selected_project = proj
+                        break
+
+                if selected_project:
+                    st.session_state.selected_upload_project = selected_project
+
+                    # Auto-get project storage info when project is selected
+                    project_id = selected_project.get('id')
+                    try:
+                        storage_response = requests.get(
+                            f"{LABEL_STUDIO_BASE_URL}/api/storages/s3",
+                            headers={"Authorization": f"Token {LABEL_STUDIO_API_TOKEN}"},
+                            params={"project": project_id}
+                        )
+
+                        if storage_response.status_code == 200:
+                            storage_data = storage_response.json()
+                            st.session_state.project_bucket_info = storage_data
+
+                            # Update bucket info for upload
+                            if storage_data and len(storage_data) > 0:
+                                storage = storage_data[0]  # Get first storage
+                                st.session_state.upload_bucket_name = storage.get('bucket', S3_BUCKET_NAME)
+                                st.session_state.upload_folder_prefix = storage.get('prefix', 'source-s3-storage')
+                        else:
+                            # Reset to default if no storage found
+                            st.session_state.upload_bucket_name = S3_BUCKET_NAME
+                            st.session_state.upload_folder_prefix = "source-s3-storage"
+
+                    except Exception as e:
+                        # Reset to default on error
+                        st.session_state.upload_bucket_name = S3_BUCKET_NAME
+                        st.session_state.upload_folder_prefix = "source-s3-storage"
+            else:
+                # Reset when no project is selected
+                st.session_state.selected_upload_project = None
+                st.session_state.project_bucket_info = None
+                st.session_state.upload_bucket_name = S3_BUCKET_NAME
+                st.session_state.upload_folder_prefix = "source-s3-storage"
+
+        # Only display configuration when project is selected
+        if st.session_state.selected_upload_project:
+            # Display current configuration based on selected project
+            bucket_display = st.session_state.upload_bucket_name
+            folder_display = st.session_state.upload_folder_prefix
+            st.info(f"**S3 Bucket:** {bucket_display}/{folder_display}/")
+
+            # Display selected project info
+            project_name = st.session_state.selected_upload_project.get('title') or st.session_state.selected_upload_project.get('name')
+            project_id = st.session_state.selected_upload_project.get('id')
+            st.info(f"**Selected Project:** {project_name} (ID: {project_id})")
 
         # Upload Images section
         uploaded_images = st.file_uploader(
@@ -626,19 +721,19 @@ with tab2:
         # Processing section
         st.markdown("---")
 
-        # Upload button
+        # Upload button - only enable when both project and images are selected
+        can_upload = uploaded_images and st.session_state.selected_upload_project
         upload_button = st.button(
-            "🚀 Start Upload",
+            "Start Upload",
             type="primary",
             use_container_width=True,
-            disabled=not uploaded_images
+            disabled=not can_upload
         )
 
         # Upload and sync process
         if upload_button:
-            if not uploaded_images:
-                st.error("❌ Please select images before uploading")
-            else:
+            # Since button is only enabled when both conditions are met, we can proceed directly
+            if uploaded_images and st.session_state.selected_upload_project:
                 upload_results = {
                     'total_images': len(uploaded_images),
                     'successful_uploads': 0,
@@ -657,24 +752,31 @@ with tab2:
                     status_text.text(f"Processing {i+1}/{len(uploaded_images)}: {image_file.name}")
 
                     try:
-                        # Step 1: Upload to S3
+                        # Step 1: Upload to S3 using project-specific bucket and folder
+                        upload_bucket = st.session_state.upload_bucket_name
+                        upload_prefix = st.session_state.upload_folder_prefix
+
                         s3_url, s3_key = upload_image_to_s3(
                             image_file,
-                            S3_BUCKET_NAME,
-                            folder_prefix="source-s3-storage"
+                            upload_bucket,
+                            folder_prefix=upload_prefix
                         )
                         upload_results['successful_uploads'] += 1
                         
                     except Exception as e:
                         upload_results['failed_uploads'] += 1
-                        upload_results['errors'].append(f"Upload failed for {image_file.name}: {str(e)}")
+                        upload_results['errors'].append(f"Upload failed for {image_file.name} : {str(e)}")
 
                 # Step 2: Trigger Label Studio Source Cloud Storage sync (once for all uploaded images)
                 if upload_results['successful_uploads'] > 0:
                     try:
                         status_text.text("Triggering Label Studio Source Cloud Storage sync...")
+
+                        # Use selected project (guaranteed to exist since button is only enabled when project is selected)
+                        project_id = st.session_state.selected_upload_project.get('id')
+
                         sync_success, sync_response = trigger_labelstudio_storage_sync(
-                            LABEL_STUDIO_PROJECT_ID,
+                            project_id,
                             LABEL_STUDIO_API_TOKEN,
                             LABEL_STUDIO_BASE_URL
                         )
@@ -745,7 +847,7 @@ with tab2:
                         <h4>✅ Upload & Source Cloud Storage Sync Completed!</h4>
                         <p><strong>Successfully uploaded to S3:</strong> {upload_results['successful_uploads']}/{upload_results['total_images']} files</p>
                         <p><strong>Source Cloud Storage synced:</strong> {storage_title} (ID: {storage_id})</p>
-                        <p><strong>Folder:</strong> source-s3-storage/</p>
+                        <p><strong>Folder:</strong> {st.session_state.upload_folder_prefix}/</p>
                         <p><small>💡 Check Label Studio project for new tasks (may take a few moments to appear)</small></p>
                     </div>
                     ''', unsafe_allow_html=True)
@@ -755,7 +857,7 @@ with tab2:
                         <h4>⚠️ Partial Success</h4>
                         <p><strong>Successfully uploaded to S3:</strong> {upload_results['successful_uploads']}/{upload_results['total_images']} files</p>
                         <p><strong>Source Cloud Storage sync failed:</strong> Images uploaded but sync trigger failed</p>
-                        <p><strong>Folder:</strong> source-s3-storage/</p>
+                        <p><strong>Folder:</strong> {st.session_state.upload_folder_prefix}/</p>
                         <p><small>💡 Try triggering Source Cloud Storage sync manually in Label Studio or wait for auto-scan</small></p>
                     </div>
                     ''', unsafe_allow_html=True)
@@ -775,7 +877,7 @@ with tab2:
         st.markdown('</div>', unsafe_allow_html=True)
 
     with col2:
-        st.subheader("📥 Export Annotations and Training")
+        st.subheader("📥 Export Annotations")
         
         # Lấy token từ config nếu có
         token = LABEL_STUDIO_API_TOKEN
@@ -836,7 +938,7 @@ with tab2:
                             selected_project = proj
                             break
                 
-                if st.button("🚀 Start", type="primary", use_container_width=True):
+                if st.button("Start", type="primary", use_container_width=True):
                     if selected_project:
                         lambda_client = boto3.client('lambda', region_name='ap-southeast-1')
                         try:
@@ -867,13 +969,15 @@ with tab3:
 
     with col_deploy:
         st.markdown('<div class="upload-section">', unsafe_allow_html=True)
-        st.subheader("🚀 Deploy Endpoint")
+        st.subheader("Deploy Endpoint")
 
         # Initialize session state for selected folder
         if 'selected_folder' not in st.session_state:
             st.session_state.selected_folder = None
         if 'folders_cache' not in st.session_state:
             st.session_state.folders_cache = None
+        if 'deploy_in_progress' not in st.session_state:
+            st.session_state.deploy_in_progress = False
 
         # Auto-load folders when entering tab (similar to Label Studio projects)
         if st.session_state.folders_cache is None:
@@ -903,7 +1007,10 @@ with tab3:
                 current_folder = st.session_state.selected_folder
 
             # Use button (similar to Export Labels button)
-            if st.button("🚀 Use Folder", type="primary", use_container_width=True):
+            deploy_button_disabled = st.session_state.deploy_in_progress
+            deploy_button_text = "Deploying..." if deploy_button_disabled else "Deploy"
+
+            if st.button(deploy_button_text, type="primary", use_container_width=True, disabled=deploy_button_disabled):
                 if current_folder:
                     # Call Lambda function create_endpoint with folder name
                     # Configure Lambda client with extended timeout
@@ -918,6 +1025,9 @@ with tab3:
                     )
 
                     try:
+                        # Set deploy in progress
+                        st.session_state.deploy_in_progress = True
+
                         with st.spinner("🔄 Creating endpoint... (This may take up to 5 minutes)"):
                             response = lambda_client.invoke(
                                 FunctionName='create_endpoint',
@@ -964,6 +1074,10 @@ with tab3:
                         st.markdown("#### 📋 Selected Folder")
                         st.info(f"**Folder:** `{current_folder}`")
                         st.code(current_folder, language="text")
+
+                    finally:
+                        # Reset deploy status regardless of success or failure
+                        st.session_state.deploy_in_progress = False
                 else:
                     st.warning("⚠️ Vui lòng chọn một folder trước khi sử dụng.")
         else:
