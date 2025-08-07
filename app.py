@@ -15,7 +15,6 @@ logger = logging.getLogger(__name__)
 st.set_page_config(
     layout="wide",
     page_title="Planogram Compliance",
-    page_icon="📊"
 )
 
 # Custom CSS
@@ -255,11 +254,11 @@ def trigger_labelstudio_storage_sync(project_id, api_token, base_url):
 
     
 # Main header
-st.markdown('<h1 class="main-header">📊 Planogram Compliance</h1>', unsafe_allow_html=True)
+st.markdown('<h1 class="main-header"> Planogram Compliance </h1>', unsafe_allow_html=True)
 st.markdown('<p style="text-align: center; color: #666;">Review System and Data Ingestion</p>', unsafe_allow_html=True)
 
 # Create tabs - Thêm tab Deploy endpoint
-tab1, tab2, tab3 = st.tabs(["📊 Label Studio", "🚀 Deploy endpoint", "🔍 Review",])
+tab1, tab2, tab3 = st.tabs([" Label Studio ", " Deploy endpoint ", " Review ",])
 
 
 # Tab 1: RAG Data Ingestion
@@ -268,7 +267,7 @@ with tab1:
     col1, col2 = st.columns([1, 1])
 
     with col1:
-        st.subheader("🖼️ Upload Images")
+        st.subheader(" Upload Images ")
 
         # Project selection for upload
         if 'upload_projects' not in st.session_state:
@@ -471,7 +470,7 @@ with tab1:
 
                 # Display results
                 st.markdown("---")
-                st.subheader("📊 Upload Results")
+                st.subheader(" Upload Results")
 
                 # Results statistics
                 col_stat1, col_stat2, col_stat3, col_stat4 = st.columns(4)
@@ -550,7 +549,7 @@ with tab1:
         st.markdown('</div>', unsafe_allow_html=True)
 
     with col2:
-        st.subheader("📥 Export Annotations")
+        st.subheader(" Export Annotations ")
         
         # Lấy token từ config nếu có
         token = LABEL_STUDIO_API_TOKEN
@@ -652,7 +651,7 @@ with tab2:
 
         # Auto-load folders when entering tab (similar to Label Studio projects)
         if st.session_state.folders_cache is None:
-            with st.spinner("🔍 Loading folders from S3..."):
+            with st.spinner(" Loading folders from S3..."):
                 st.session_state.folders_cache = get_s3_folders("uniben-data", "output_lambda/")
 
         folders = st.session_state.folders_cache
@@ -742,7 +741,7 @@ with tab2:
                             st.error(f"❌ Lỗi khi gọi Lambda create_endpoint: {error_msg}")
 
                         # Still show the folder name even if Lambda fails
-                        st.markdown("#### 📋 Selected Folder")
+                        st.markdown("####  Selected Folder ")
                         st.info(f"**Folder:** `{current_folder}`")
                         st.code(current_folder, language="text")
 
@@ -791,7 +790,7 @@ with tab3:
     </style>
     """, unsafe_allow_html=True)
 
-    st.markdown("### 🔍 Review Pending Items")
+    st.markdown("###  Review Pending Items")
 
     # Initialize session state
     if 'selected_image' not in st.session_state:
@@ -852,7 +851,7 @@ with tab3:
 
             st.markdown("---")
         else:
-            st.info("📝 No pending review items found")
+            st.info(" No pending review items found")
             st.stop()
 
     except Exception as e:
@@ -874,12 +873,12 @@ with tab3:
     
     # Column 1: Image List
     with col1:
-        st.markdown("#### 📷 Pending Images")
+        st.markdown("#### Review Images")
         st.caption(f"Total: {len(pending_items)} | Filtered: {total_items}")
         
         # Search box
         new_search = st.text_input(
-            "🔍 Search", 
+            " Search", 
             value=st.session_state.search_term,
             placeholder="Enter image name...",
             key="search_input"
@@ -936,7 +935,7 @@ with tab3:
     
     # Column 2: Image Display
     with col2:
-        st.markdown("#### 🖼️ Image Preview")
+        st.markdown("#### Image Preview")
 
         if st.session_state.selected_image:
             # Find selected item data
@@ -944,11 +943,11 @@ with tab3:
                                 if item['image_name'] == st.session_state.selected_image), None)
 
             if selected_item:
-                st.markdown(f"**📷 {selected_item['image_name']}**")
+                st.markdown(f"** {selected_item['image_name']}**")
 
                 # Display timestamp
                 if selected_item['timestamp']:
-                    st.caption(f"📅 {selected_item['timestamp']}")
+                    st.caption(f" {selected_item['timestamp']}")
 
                 try:
                     # Display from S3 URL using presigned URL
@@ -964,7 +963,7 @@ with tab3:
                     st.info("💡 Please check if the S3 URL is accessible or if AWS credentials are configured correctly")
 
             else:
-                st.info("🔍 Selected image not found in current filter")
+                st.info(" Selected image not found in current filter")
         else:
             st.markdown("""
             <div style="height: 300px; display: flex; align-items: center; justify-content: center;
@@ -977,7 +976,7 @@ with tab3:
     
     # Column 3: Analysis Results
     with col3:
-        st.markdown("#### 📊 Analysis Results")
+        st.markdown("#### Analysis Results")
 
         if st.session_state.selected_image:
             # Find selected item data
@@ -994,7 +993,7 @@ with tab3:
                 <div style="background-color: {'#d4edda' if compliance else '#f8d7da'};
                             padding: 10px; border-radius: 5px; margin-bottom: 15px;
                             border: 1px solid {'#c3e6cb' if compliance else '#f5c6cb'};">
-                    <strong>🎯 Compliance Status:</strong><br>
+                    <strong> Compliance Status:</strong><br>
                     <span style="color: {compliance_color}; font-weight: bold; font-size: 1.1em;">{compliance_text}</span>
                 </div>
                 """, unsafe_allow_html=True)
@@ -1015,7 +1014,7 @@ with tab3:
 
                             st.markdown(f"""
                             <div style="background-color: #e8f5e8; padding: 10px; border-radius: 5px; margin-bottom: 15px;">
-                                <strong>🗄️ Shelf Analysis</strong><br>
+                                <strong> Shelf Analysis</strong><br>
                                 Total Shelves: <strong>{total_shelves}</strong>
                             </div>
                             """, unsafe_allow_html=True)
@@ -1071,7 +1070,7 @@ with tab3:
 
                 # Display review comment if exists
                 if selected_item.get('review_comment'):
-                    st.markdown("#### 💬 Review Comment")
+                    st.markdown("####  Review Comment")
                     st.markdown(f"""
                     <div style="background-color: #f8f9fa; padding: 10px; border-radius: 5px;
                                 margin-bottom: 15px; border-left: 4px solid #007bff;">
@@ -1084,7 +1083,7 @@ with tab3:
             <div style="height: 200px; display: flex; align-items: center; justify-content: center;
                         background-color: #fff3cd; border: 2px dashed #ffc107; border-radius: 10px;">
                 <p style="color: #856404; text-align: center;">
-                    📊 Select an image to view<br>analysis results
+                     Select an image to view<br>analysis results
                 </p>
             </div>
             """, unsafe_allow_html=True)
