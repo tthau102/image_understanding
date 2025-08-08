@@ -657,7 +657,7 @@ with tab2:
         # Auto-load folders when entering tab (similar to Label Studio projects)
         if st.session_state.folders_cache is None:
             with st.spinner(" Loading folders from S3..."):
-                st.session_state.folders_cache = get_s3_folders("uniben-data", "output_lambda/")
+                st.session_state.folders_cache = get_s3_folders("uniben-planogram-training", "tranining-model/")
 
         folders = st.session_state.folders_cache
 
