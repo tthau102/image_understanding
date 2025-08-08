@@ -163,7 +163,8 @@ def upload_image_to_s3(image_file, bucket_name, folder_prefix="uploaded_images")
     try:
         # Generate unique filename with timestamp
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"{timestamp}_{image_file.name}"
+        # filename = f"{timestamp}_{image_file.name}"
+        filename = f"{image_file.name}"
         s3_key = f"{folder_prefix}/{filename}"
         
         # Reset file pointer
@@ -513,6 +514,8 @@ with tab1:
                     sync_info = upload_results.get('sync_info', {})
                     storage_title = sync_info.get('storage_title', 'Source Cloud Storage')
                     storage_id = sync_info.get('storage_id', 'N/A')
+                    project_id = st.session_state.selected_upload_project.get('id')
+                    project_url = f"{LABEL_STUDIO_BASE_URL}/projects/{project_id}"
 
                     st.markdown(f'''
                     <div class="result-success">
@@ -520,9 +523,11 @@ with tab1:
                         <p><strong>Successfully uploaded to S3:</strong> {upload_results['successful_uploads']}/{upload_results['total_images']} files</p>
                         <p><strong>Source Cloud Storage synced:</strong> {storage_title} (ID: {storage_id})</p>
                         <p><strong>Folder:</strong> {st.session_state.upload_folder_prefix}/</p>
+                        <p>🔗 <strong>Project:</strong> <a href="{project_url}" target="_blank">{project_url}</a></p>
                         <p><small>💡 Check Label Studio project for new tasks (may take a few moments to appear)</small></p>
                     </div>
                     ''', unsafe_allow_html=True)
+
                 elif upload_results['successful_uploads'] > 0:
                     st.markdown(f'''
                     <div class="result-warning">
