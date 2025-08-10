@@ -1,0 +1,181 @@
+2025-07-24 11:12:12,164 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 11:12:12,174 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 11:12:12,282 - app.services.labelstudio_service - INFO - 🔍 Fetching projects from: http://54.254.237.128:8080/api/projects
+2025-07-24 11:12:12,367 - app.services.labelstudio_service - INFO - ✅ Found 3 Label Studio projects
+2025-07-24 11:12:16,216 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 11:12:16,226 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 11:12:16,347 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 11:12:16,358 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 11:12:16,764 - app.services.data_ops - INFO - ✅ Generated presigned URL for: annotated-Hung/z6813701254935_095f85982e87de0243c12c924c83dda9_annotated.jpg
+2025-07-24 11:12:18,472 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 11:12:18,483 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 11:12:18,617 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 11:12:18,628 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 11:12:18,745 - app.services.data_ops - INFO - ✅ Generated presigned URL for: annotated-Hung/z6813701247882_c261b1bfe8f9d000fb6eb6c855b192f0_annotated.jpg
+2025-07-24 11:12:20,310 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 11:12:20,320 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 11:12:20,457 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 11:12:20,467 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 11:12:20,575 - app.services.data_ops - INFO - ✅ Generated presigned URL for: annotated-Hung/z6813701241527_422b8c55ccec41f1f43b866871588a8d_annotated.jpg
+2025-07-24 11:12:21,325 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 11:12:21,335 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 11:12:21,472 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 11:12:21,488 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 11:12:21,617 - app.services.data_ops - INFO - ✅ Generated presigned URL for: annotated-Hung/z6813701232850_f3a4cfbd9d5c1a3945389ff9a83283bf_annotated.jpg
+2025-07-24 11:12:23,487 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 11:12:23,497 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 11:12:23,628 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 11:12:23,638 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 11:12:23,751 - app.services.data_ops - INFO - ✅ Generated presigned URL for: annotated-Hung/z6813701228711_a4c86c3549e8b1becf8aa736054c005e_annotated.jpg
+2025-07-24 11:12:37,429 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 11:12:37,439 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 11:12:37,567 - app.services.data_ops - INFO - ✅ Generated presigned URL for: annotated-Hung/z6813701228711_a4c86c3549e8b1becf8aa736054c005e_annotated.jpg
+2025-07-24 11:12:37,698 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 11:12:37,707 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 11:12:37,814 - app.services.data_ops - INFO - ✅ Generated presigned URL for: annotated-Hung/z6813701228711_a4c86c3549e8b1becf8aa736054c005e_annotated.jpg
+2025-07-24 11:12:39,359 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 11:12:39,369 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 11:12:39,488 - app.services.data_ops - INFO - ✅ Generated presigned URL for: annotated-Hung/z6813701228711_a4c86c3549e8b1becf8aa736054c005e_annotated.jpg
+2025-07-24 11:12:39,628 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 11:12:39,639 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 11:12:39,751 - app.services.data_ops - INFO - ✅ Generated presigned URL for: annotated-Hung/z6813701228711_a4c86c3549e8b1becf8aa736054c005e_annotated.jpg
+2025-07-24 11:12:43,165 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 11:12:43,175 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 11:12:43,282 - app.services.data_ops - INFO - ✅ Generated presigned URL for: annotated-Hung/z6813701228711_a4c86c3549e8b1becf8aa736054c005e_annotated.jpg
+2025-07-24 11:12:43,417 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 11:12:43,427 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 11:12:43,576 - app.services.data_ops - INFO - ✅ Generated presigned URL for: annotated-Hung/z6813701228711_a4c86c3549e8b1becf8aa736054c005e_annotated.jpg
+2025-07-24 11:12:46,835 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 11:12:46,845 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 11:12:46,954 - app.services.data_ops - INFO - ✅ Generated presigned URL for: annotated-Hung/z6813701228711_a4c86c3549e8b1becf8aa736054c005e_annotated.jpg
+2025-07-24 11:12:47,085 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 11:12:47,095 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 11:12:47,202 - app.services.data_ops - INFO - ✅ Generated presigned URL for: annotated-Hung/z6813701228711_a4c86c3549e8b1becf8aa736054c005e_annotated.jpg
+2025-07-24 11:16:14,853 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 11:16:14,865 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 11:16:14,915 - app.services.labelstudio_service - INFO - 🔍 Fetching projects from: http://54.254.237.128:8080/api/projects
+2025-07-24 11:16:14,980 - app.services.labelstudio_service - INFO - ✅ Found 3 Label Studio projects
+2025-07-24 11:19:39,453 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 11:19:39,462 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 11:19:39,509 - app.services.labelstudio_service - INFO - 🔍 Fetching projects from: http://54.254.237.128:8080/api/projects
+2025-07-24 11:19:39,577 - app.services.labelstudio_service - INFO - ✅ Found 3 Label Studio projects
+2025-07-24 11:22:19,124 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 11:22:19,132 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 11:22:19,188 - app.services.labelstudio_service - INFO - 🔍 Fetching projects from: http://54.254.237.128:8080/api/projects
+2025-07-24 11:22:19,263 - app.services.labelstudio_service - INFO - ✅ Found 3 Label Studio projects
+2025-07-24 11:22:33,640 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 11:22:33,653 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 11:22:33,805 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 11:22:33,814 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 11:22:38,141 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 11:22:38,149 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 11:22:38,305 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 11:22:38,313 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 11:22:40,811 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 11:22:40,820 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 11:22:40,973 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 11:22:40,982 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 11:22:51,455 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 11:22:51,463 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 11:22:51,606 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 11:22:51,614 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 11:22:52,887 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 11:22:52,896 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 11:22:53,044 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 11:22:53,054 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 11:29:32,878 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 11:29:32,887 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 11:29:32,991 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 11:29:33,001 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 11:29:33,061 - app.services.data_ops - INFO - ✅ Generated presigned URL for: annotated-Hung/z6813701254935_095f85982e87de0243c12c924c83dda9_annotated.jpg
+2025-07-24 11:29:36,353 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 11:29:36,365 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 11:29:36,467 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 11:29:36,476 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 11:29:36,535 - app.services.data_ops - INFO - ✅ Generated presigned URL for: annotated-Hung/z6813701247882_c261b1bfe8f9d000fb6eb6c855b192f0_annotated.jpg
+2025-07-24 11:29:37,581 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 11:29:37,590 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 11:29:37,693 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 11:29:37,701 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 11:29:37,761 - app.services.data_ops - INFO - ✅ Generated presigned URL for: annotated-Hung/z6813701241527_422b8c55ccec41f1f43b866871588a8d_annotated.jpg
+2025-07-24 11:29:38,922 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 11:29:38,932 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 11:29:39,051 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 11:29:39,059 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 11:29:39,137 - app.services.data_ops - INFO - ✅ Generated presigned URL for: annotated-Hung/z6813701232850_f3a4cfbd9d5c1a3945389ff9a83283bf_annotated.jpg
+2025-07-24 11:29:40,034 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 11:29:40,043 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 11:29:40,156 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 11:29:40,164 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 11:29:40,223 - app.services.data_ops - INFO - ✅ Generated presigned URL for: annotated-Hung/z6813701228711_a4c86c3549e8b1becf8aa736054c005e_annotated.jpg
+2025-07-24 11:29:41,364 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 11:29:41,373 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 11:29:41,473 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 11:29:41,482 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 11:29:41,544 - app.services.data_ops - INFO - ✅ Generated presigned URL for: annotated-Hung/z6813701219287_06d98a2e9008ab1cda3e707935d14c51_annotated.jpg
+2025-07-24 11:29:42,590 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 11:29:42,601 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 11:29:42,710 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 11:29:42,719 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 11:29:42,775 - app.services.data_ops - INFO - ✅ Generated presigned URL for: annotated-Hung/z6813701215671_741592ada9f7307e25f311c4ec4f761c_annotated.jpg
+2025-07-24 11:29:44,851 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 11:29:44,860 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 11:29:44,973 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 11:29:44,981 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 11:29:45,046 - app.services.data_ops - INFO - ✅ Generated presigned URL for: annotated-Hung/z6813701208696_e97847eded6c86bca3a87f449087149f_annotated.jpg
+2025-07-24 11:29:45,581 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 11:29:45,590 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 11:29:45,718 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 11:29:45,726 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 11:29:45,869 - app.services.data_ops - INFO - ✅ Generated presigned URL for: annotated-Hung/z6813701197237_02940a3e1734b0d815c2d2ce80ad091d_annotated.jpg
+2025-07-24 11:29:46,488 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 11:29:46,496 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 11:29:46,609 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 11:29:46,618 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 11:29:46,714 - app.services.data_ops - INFO - ✅ Generated presigned URL for: annotated-Hung/z6813701189717_7d4e26e26de51b683562f506dd9f02ba_annotated.jpg
+2025-07-24 11:29:48,025 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 11:29:48,034 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 11:29:48,147 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 11:29:48,156 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 11:29:48,216 - app.services.data_ops - INFO - ✅ Generated presigned URL for: annotated-Hung/z6813701183795_2817536ed9c05385fee9c803dda2ebeb_annotated.jpg
+2025-07-24 15:41:31,835 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 15:41:31,846 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 15:41:31,913 - app.services.labelstudio_service - INFO - 🔍 Fetching projects from: http://54.254.237.128:8080/api/projects
+2025-07-24 15:41:32,017 - app.services.labelstudio_service - INFO - ✅ Found 3 Label Studio projects
+2025-07-24 15:42:41,357 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 15:42:41,366 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 15:42:41,500 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 15:42:41,508 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 15:42:46,171 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 15:42:46,180 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 15:42:46,315 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 15:42:46,324 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 15:44:21,816 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 15:44:21,827 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 15:44:21,964 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 15:44:21,972 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 15:44:22,939 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 15:44:22,947 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 15:44:23,105 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 15:44:23,114 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 15:44:24,679 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 15:44:24,688 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 15:44:24,829 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 15:44:24,837 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 15:44:25,704 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 15:44:25,714 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-24 15:44:25,848 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-24 15:44:25,857 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-29 10:52:49,882 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-29 10:52:49,891 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-29 10:52:49,945 - app.services.labelstudio_service - INFO - 🔍 Fetching projects from: http://54.254.237.128:8080/api/projects
+2025-07-29 10:52:50,042 - app.services.labelstudio_service - INFO - ✅ Found 3 Label Studio projects
+2025-07-29 10:52:54,674 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-29 10:52:54,688 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-29 10:52:54,788 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-29 10:52:54,798 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-29 10:52:55,202 - app.services.data_ops - INFO - ✅ Generated presigned URL for: annotated-Hung/z6813701254935_095f85982e87de0243c12c924c83dda9_annotated.jpg
+2025-07-29 10:53:41,203 - app.services.data_ops - INFO - ✅ Connected to PostgreSQL database
+2025-07-29 10:53:41,217 - app.services.data_ops - INFO - 🔍 Found 124 pending review items
+2025-07-29 10:53:41,275 - app.services.labelstudio_service - INFO - 🔍 Fetching projects from: http://54.254.237.128:8080/api/projects
+2025-07-29 10:53:41,350 - app.services.labelstudio_service - INFO - ✅ Found 3 Label Studio projects

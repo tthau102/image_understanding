@@ -1,11 +1,21 @@
 import boto3
 import psycopg2
 import logging
-from typing import List, Dict
-from config import S3_REGION, DB_CONFIG
+from datetime import datetime
+from typing import List, Dict, Tuple
+from PIL import Image
+from io import BytesIO
+import tempfile
+import os
+
+from config import (
+    S3_BUCKET_NAME, S3_FOLDER_PREFIX, S3_REGION,
+    DB_CONFIG, DB_TABLE,
+    BEDROCK_REGION, EMBEDDING_MODEL, EMBEDDING_DIMENSION
+)
 
 # Setup logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 # Initialize AWS S3 client
@@ -34,9 +44,9 @@ def get_pending_review_items(conn) -> List[Dict]:
     try:
         cursor = conn.cursor()
 
-        query = """
+        query = f"""
             SELECT id, image_name, s3_url, product_count, compliance_assessment, review_comment, timestamp
-            FROM results
+            FROM {DB_RESULT}
             ORDER BY timestamp DESC
         """
         cursor.execute(query)
@@ -101,3 +111,5 @@ def generate_presigned_url(s3_url: str, expiration: int = 3600) -> str:
         logger.error(f"❌ Failed to generate presigned URL for {s3_url}: {str(e)}")
         # Return original URL as fallback
         return s3_url
+
+        
