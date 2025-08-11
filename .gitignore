@@ -1,7 +1,8 @@
 env
 __pycache__
-*/
+
 *.env*
 *.json
 *.sh
 config.py
+app.log
