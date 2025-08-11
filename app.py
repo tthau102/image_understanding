@@ -832,7 +832,7 @@ with tab3:
     # Folder prefix input
     folder_prefix = st.text_input(
         "S3 Folder Prefix (optional):",
-        value="uploaded_images",
+        value="test-images",
         help="Specify a folder prefix for organizing uploaded images in S3",
         key="s3_folder_prefix_input"
     )
