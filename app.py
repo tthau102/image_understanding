@@ -2,7 +2,7 @@ import streamlit as st
 import logging
 import json
 import pandas as pd
-from data_ops import get_db_connection, get_pending_review_items, generate_presigned_url
+from data_ops import get_db_connection, get_pending_review_items, generate_presigned_url, upload_image_to_s3
 import requests
 import boto3
 from datetime import datetime
@@ -145,6 +145,58 @@ def get_s3_folders(bucket_name, prefix):
         logger.error(f"❌ Failed to get S3 folders: {str(e)}")
         return []
 
+def check_existing_files_in_s3(bucket_name, folder_prefix, file_names):
+    """
+    Check which files already exist in S3 bucket
+
+    Args:
+        bucket_name: S3 bucket name
+        folder_prefix: S3 folder prefix
+        file_names: List of file names to check
+
+    Returns:
+        dict: Dictionary with existing files info
+    """
+    try:
+        existing_files = []
+        non_existing_files = []
+
+        for file_name in file_names:
+            s3_key = f"{folder_prefix}/{file_name}"
+
+            try:
+                # Try to get object metadata (head_object is more efficient than get_object)
+                s3_client.head_object(Bucket=bucket_name, Key=s3_key)
+                existing_files.append({
+                    'name': file_name,
+                    's3_key': s3_key
+                })
+                logger.info(f"✅ File exists in S3: {s3_key}")
+
+            except s3_client.exceptions.NoSuchKey:
+                # File doesn't exist
+                non_existing_files.append(file_name)
+                logger.info(f"📝 File not found in S3: {s3_key}")
+
+            except Exception as e:
+                # Other errors (permissions, etc.)
+                logger.warning(f"⚠️ Error checking file {s3_key}: {str(e)}")
+                non_existing_files.append(file_name)
+
+        return {
+            'existing_files': existing_files,
+            'non_existing_files': non_existing_files,
+            'total_checked': len(file_names)
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Failed to check existing files in S3: {str(e)}")
+        return {
+            'existing_files': [],
+            'non_existing_files': file_names,
+            'total_checked': len(file_names)
+        }
+
 
 
 def upload_image_to_s3(image_file, bucket_name, folder_prefix="uploaded_images"):
@@ -258,8 +310,8 @@ def trigger_labelstudio_storage_sync(project_id, api_token, base_url):
 st.markdown('<h1 class="main-header"> Planogram Compliance </h1>', unsafe_allow_html=True)
 st.markdown('<p style="text-align: center; color: #666;">Review System and Data Ingestion</p>', unsafe_allow_html=True)
 
-# Create tabs - Thêm tab Deploy endpoint
-tab1, tab2, tab3 = st.tabs([" Label Studio ", " Deploy endpoint ", " Review ",])
+# Create tabs - Thêm tab Upload images
+tab1, tab2, tab3, tab4 = st.tabs([" Label Studio ", " Deploy endpoint ", " Upload images ", " Review ",])
 
 
 # Tab 1: RAG Data Ingestion
@@ -400,7 +452,8 @@ with tab1:
             "Start Upload",
             type="primary",
             use_container_width=True,
-            disabled=not can_upload
+            disabled=not can_upload,
+            key="label_studio_upload_btn"
         )
 
         # Upload and sync process
@@ -615,7 +668,7 @@ with tab1:
                             selected_project = proj
                             break
                 
-                if st.button("Start", type="primary", use_container_width=True):
+                if st.button("Start", type="primary", use_container_width=True, key="label_studio_export_btn"):
                     if selected_project:
                         lambda_client = boto3.client('lambda', region_name='ap-southeast-1')
                         try:
@@ -685,7 +738,7 @@ with tab2:
             deploy_button_disabled = st.session_state.deploy_in_progress
             deploy_button_text = "Deploying..." if deploy_button_disabled else "Deploy"
 
-            if st.button(deploy_button_text, type="primary", use_container_width=True, disabled=deploy_button_disabled):
+            if st.button(deploy_button_text, type="primary", use_container_width=True, disabled=deploy_button_disabled, key="deploy_endpoint_btn"):
                 if current_folder:
                     # Call Lambda function create_endpoint with folder name
                     # Configure Lambda client with extended timeout
@@ -765,8 +818,227 @@ with tab2:
         # Empty space or can be used for other content later
         st.markdown("")
 
-# Tab 3: Review
+# Tab 3: Upload images
 with tab3:
+    st.subheader(" Upload Images to S3")
+
+    # S3 Configuration section
+    st.markdown("#### S3 Configuration")
+
+    # Display current S3 bucket from config
+    st.info(f"**S3 Bucket:** {S3_BUCKET_NAME}")
+    st.info(f"**S3 Region:** {S3_REGION}")
+
+    # Folder prefix input
+    folder_prefix = st.text_input(
+        "S3 Folder Prefix (optional):",
+        value="uploaded_images",
+        help="Specify a folder prefix for organizing uploaded images in S3",
+        key="s3_folder_prefix_input"
+    )
+
+    st.markdown("---")
+
+    # Upload Images section
+    st.markdown("#### Select Images")
+    uploaded_images = st.file_uploader(
+        "Choose image files",
+        type=["png", "jpg", "jpeg"],
+        accept_multiple_files=True,
+        key="simple_images_upload",
+        help="Select images to upload to S3 bucket"
+    )
+
+    if uploaded_images:
+        st.success(f"✅ Images selected: {len(uploaded_images)} files")
+
+        # Show image preview (max 5 images)
+        if len(uploaded_images) <= 5:
+            st.markdown("**Preview:**")
+            cols = st.columns(min(len(uploaded_images), 5))
+            for i, img in enumerate(uploaded_images[:5]):
+                with cols[i]:
+                    st.image(img, caption=img.name, width=100)
+        else:
+            st.info(f"Too many images to preview. Total: {len(uploaded_images)}")
+
+        # Check for existing files in S3
+        st.markdown("---")
+        st.markdown("#### File Existence Check")
+
+        with st.spinner("🔍 Checking for existing files in S3..."):
+            file_names = [img.name for img in uploaded_images]
+            existence_check = check_existing_files_in_s3(S3_BUCKET_NAME, folder_prefix, file_names)
+
+        # Display results of existence check
+        existing_files = existence_check['existing_files']
+        non_existing_files = existence_check['non_existing_files']
+
+        if existing_files:
+            st.warning(f"⚠️ **{len(existing_files)} file(s) already exist in S3:**")
+
+            # Show existing files in an expandable section
+            with st.expander(f"📁 View Existing Files ({len(existing_files)})"):
+                for file_info in existing_files:
+                    st.write(f"• **{file_info['name']}** → `{file_info['s3_key']}`")
+
+            st.info("💡 These files will be **overwritten** if you proceed with the upload.")
+
+        if non_existing_files:
+            st.success(f"✅ **{len(non_existing_files)} file(s) are new and will be uploaded:**")
+
+            # Show new files in an expandable section
+            with st.expander(f"📁 View New Files ({len(non_existing_files)})"):
+                for file_name in non_existing_files:
+                    st.write(f"• **{file_name}**")
+
+    # Processing section
+    st.markdown("---")
+    st.markdown("#### Upload to S3")
+
+    # Upload button
+    upload_button = st.button(
+        "Start Upload",
+        type="primary",
+        use_container_width=True,
+        disabled=not uploaded_images,
+        key="upload_images_btn"
+    )
+
+    # Upload process
+    if upload_button and uploaded_images:
+        # Re-check file existence before upload
+        file_names = [img.name for img in uploaded_images]
+        existence_check = check_existing_files_in_s3(S3_BUCKET_NAME, folder_prefix, file_names)
+
+        upload_results = {
+            'total_images': len(uploaded_images),
+            'successful_uploads': 0,
+            'failed_uploads': 0,
+            'errors': [],
+            'uploaded_files': [],
+            'overwritten_files': [],
+            'new_files': []
+        }
+
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+
+        for i, image_file in enumerate(uploaded_images):
+            progress = (i + 1) / len(uploaded_images)
+            progress_bar.progress(progress)
+
+            # Check if file already exists
+            file_exists = any(ef['name'] == image_file.name for ef in existence_check['existing_files'])
+            status_text.text(f"Uploading {i+1}/{len(uploaded_images)}: {image_file.name} {'(overwriting)' if file_exists else '(new)'}")
+
+            try:
+                # Upload to S3 using configured bucket
+                s3_url, s3_key = upload_image_to_s3(
+                    image_file,
+                    S3_BUCKET_NAME,
+                    folder_prefix=folder_prefix
+                )
+                upload_results['successful_uploads'] += 1
+
+                file_info = {
+                    'name': image_file.name,
+                    's3_url': s3_url,
+                    's3_key': s3_key
+                }
+
+                upload_results['uploaded_files'].append(file_info)
+
+                # Categorize as overwritten or new
+                if file_exists:
+                    upload_results['overwritten_files'].append(file_info)
+                else:
+                    upload_results['new_files'].append(file_info)
+
+            except Exception as e:
+                upload_results['failed_uploads'] += 1
+                upload_results['errors'].append(f"Upload failed for {image_file.name}: {str(e)}")
+
+        # Clear progress indicators
+        progress_bar.empty()
+        status_text.empty()
+
+        # Display results
+        st.markdown("---")
+        st.subheader(" Upload Results")
+
+        # Results statistics
+        col_stat1, col_stat2, col_stat3, col_stat4 = st.columns(4)
+
+        with col_stat1:
+            st.markdown(f'''
+            <div class="stat-box">
+                <div class="stat-number">{upload_results['total_images']}</div>
+                <div>Total Images</div>
+            </div>
+            ''', unsafe_allow_html=True)
+
+        with col_stat2:
+            st.markdown(f'''
+            <div class="stat-box">
+                <div class="stat-number" style="color: #28a745;">{len(upload_results['new_files'])}</div>
+                <div>New Files</div>
+            </div>
+            ''', unsafe_allow_html=True)
+
+        with col_stat3:
+            st.markdown(f'''
+            <div class="stat-box">
+                <div class="stat-number" style="color: #ffc107;">{len(upload_results['overwritten_files'])}</div>
+                <div>Overwritten</div>
+            </div>
+            ''', unsafe_allow_html=True)
+
+        with col_stat4:
+            st.markdown(f'''
+            <div class="stat-box">
+                <div class="stat-number" style="color: #dc3545;">{upload_results['failed_uploads']}</div>
+                <div>Failed</div>
+            </div>
+            ''', unsafe_allow_html=True)
+
+        # Success/Error messages
+        if upload_results['successful_uploads'] > 0:
+            st.markdown(f'''
+            <div class="result-success">
+                <h4>✅ Upload Completed!</h4>
+                <p><strong>Successfully uploaded:</strong> {upload_results['successful_uploads']}/{upload_results['total_images']} files</p>
+                <p><strong>S3 Bucket:</strong> {S3_BUCKET_NAME}</p>
+                <p><strong>Folder:</strong> {folder_prefix}/</p>
+            </div>
+            ''', unsafe_allow_html=True)
+
+            # Show detailed file information
+            if upload_results['new_files']:
+                with st.expander(f"📁 New Files Uploaded ({len(upload_results['new_files'])})"):
+                    for file_info in upload_results['new_files']:
+                        st.write(f"• **{file_info['name']}** → `{file_info['s3_key']}`")
+
+            if upload_results['overwritten_files']:
+                with st.expander(f"⚠️ Files Overwritten ({len(upload_results['overwritten_files'])})"):
+                    for file_info in upload_results['overwritten_files']:
+                        st.write(f"• **{file_info['name']}** → `{file_info['s3_key']}`")
+                    st.info("💡 These files already existed and have been replaced with new versions.")
+
+        if upload_results['errors']:
+            st.markdown(f'''
+            <div class="result-error">
+                <h4>❌ Errors Found ({len(upload_results['errors'])})</h4>
+                <p>Some issues occurred during the upload process:</p>
+            </div>
+            ''', unsafe_allow_html=True)
+
+            with st.expander(f"❌ View Errors ({len(upload_results['errors'])})"):
+                for error in upload_results['errors']:
+                    st.write(f"• {error}")
+
+# Tab 4: Review
+with tab4:
     # Add CSS to remove scroll bars from Review tab and columns
     st.markdown("""
     <style>
