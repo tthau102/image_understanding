@@ -92,9 +92,10 @@ st.markdown("""
 # Configuration for Image Upload & Label Studio Sync
 try:
     from config import (
-        LABEL_STUDIO_API_TOKEN, 
-        S3_BUCKET_NAME, 
+        LABEL_STUDIO_API_TOKEN,
+        S3_BUCKET_NAME,
         S3_REGION,
+        S3_UPLOAD_FOLDER_PREFIX,
         LABEL_STUDIO_PROJECT_ID,
         LABEL_STUDIO_BASE_URL
     )
@@ -102,8 +103,9 @@ except ImportError:
     # Fallback to sample config
     from config_sample import (
         LABEL_STUDIO_API_TOKEN,
-        S3_BUCKET_NAME, 
+        S3_BUCKET_NAME,
         S3_REGION,
+        S3_UPLOAD_FOLDER_PREFIX,
         LABEL_STUDIO_PROJECT_ID,
         LABEL_STUDIO_BASE_URL
     )
@@ -825,17 +827,11 @@ with tab3:
     # S3 Configuration section
     st.markdown("#### S3 Configuration")
 
-    # Display current S3 bucket from config
-    st.info(f"**S3 Bucket:** {S3_BUCKET_NAME}")
-    st.info(f"**S3 Region:** {S3_REGION}")
+    # Use folder prefix from config
+    folder_prefix = S3_UPLOAD_FOLDER_PREFIX
 
-    # Folder prefix input
-    folder_prefix = st.text_input(
-        "S3 Folder Prefix (optional):",
-        value="test-images",
-        help="Specify a folder prefix for organizing uploaded images in S3",
-        key="s3_folder_prefix_input"
-    )
+    # Display current S3 bucket and path
+    st.info(f"**S3 Path:** {S3_BUCKET_NAME}/{folder_prefix}/")
 
     st.markdown("---")
 
@@ -882,7 +878,7 @@ with tab3:
                 for file_info in existing_files:
                     st.write(f"• **{file_info['name']}** → `{file_info['s3_key']}`")
 
-            st.info("💡 These files will be **overwritten** if you proceed with the upload.")
+            st.info("💡 These files will be **skip** if you proceed with the upload.")
 
         if non_existing_files:
             st.success(f"✅ **{len(non_existing_files)} file(s) are new and will be uploaded:**")
@@ -915,10 +911,10 @@ with tab3:
             'total_images': len(uploaded_images),
             'successful_uploads': 0,
             'failed_uploads': 0,
+            'skipped_files': 0,
             'errors': [],
             'uploaded_files': [],
-            'overwritten_files': [],
-            'new_files': []
+            'skipped_file_list': []
         }
 
         progress_bar = st.progress(0)
@@ -930,7 +926,21 @@ with tab3:
 
             # Check if file already exists
             file_exists = any(ef['name'] == image_file.name for ef in existence_check['existing_files'])
-            status_text.text(f"Uploading {i+1}/{len(uploaded_images)}: {image_file.name} {'(overwriting)' if file_exists else '(new)'}")
+
+            if file_exists:
+                # Skip existing files
+                status_text.text(f"Processing {i+1}/{len(uploaded_images)}: {image_file.name} (skipping - already exists)")
+                upload_results['skipped_files'] += 1
+
+                # Find the existing file info
+                existing_file_info = next((ef for ef in existence_check['existing_files'] if ef['name'] == image_file.name), None)
+                if existing_file_info:
+                    upload_results['skipped_file_list'].append(existing_file_info)
+
+                continue  # Skip to next file
+
+            # Upload new files only
+            status_text.text(f"Uploading {i+1}/{len(uploaded_images)}: {image_file.name} (new)")
 
             try:
                 # Upload to S3 using configured bucket
@@ -948,12 +958,6 @@ with tab3:
                 }
 
                 upload_results['uploaded_files'].append(file_info)
-
-                # Categorize as overwritten or new
-                if file_exists:
-                    upload_results['overwritten_files'].append(file_info)
-                else:
-                    upload_results['new_files'].append(file_info)
 
             except Exception as e:
                 upload_results['failed_uploads'] += 1
@@ -981,16 +985,16 @@ with tab3:
         with col_stat2:
             st.markdown(f'''
             <div class="stat-box">
-                <div class="stat-number" style="color: #28a745;">{len(upload_results['new_files'])}</div>
-                <div>New Files</div>
+                <div class="stat-number" style="color: #28a745;">{upload_results['successful_uploads']}</div>
+                <div>Uploaded</div>
             </div>
             ''', unsafe_allow_html=True)
 
         with col_stat3:
             st.markdown(f'''
             <div class="stat-box">
-                <div class="stat-number" style="color: #ffc107;">{len(upload_results['overwritten_files'])}</div>
-                <div>Overwritten</div>
+                <div class="stat-number" style="color: #ffc107;">{upload_results['skipped_files']}</div>
+                <div>Skipped</div>
             </div>
             ''', unsafe_allow_html=True)
 
@@ -1013,17 +1017,26 @@ with tab3:
             </div>
             ''', unsafe_allow_html=True)
 
-            # Show detailed file information
-            if upload_results['new_files']:
-                with st.expander(f"📁 New Files Uploaded ({len(upload_results['new_files'])})"):
-                    for file_info in upload_results['new_files']:
+            # Show uploaded files details
+            if upload_results['uploaded_files']:
+                with st.expander(f"📁 Files Uploaded ({len(upload_results['uploaded_files'])})"):
+                    for file_info in upload_results['uploaded_files']:
                         st.write(f"• **{file_info['name']}** → `{file_info['s3_key']}`")
 
-            if upload_results['overwritten_files']:
-                with st.expander(f"⚠️ Files Overwritten ({len(upload_results['overwritten_files'])})"):
-                    for file_info in upload_results['overwritten_files']:
+        # Show skipped files warning
+        if upload_results['skipped_files'] > 0:
+            st.markdown(f'''
+            <div class="result-warning">
+                <h4>⚠️ Files Skipped ({upload_results['skipped_files']})</h4>
+                <p>These files already exist in S3 and were not uploaded:</p>
+            </div>
+            ''', unsafe_allow_html=True)
+
+            if upload_results['skipped_file_list']:
+                with st.expander(f"⚠️ View Skipped Files ({len(upload_results['skipped_file_list'])})"):
+                    for file_info in upload_results['skipped_file_list']:
                         st.write(f"• **{file_info['name']}** → `{file_info['s3_key']}`")
-                    st.info("💡 These files already existed and have been replaced with new versions.")
+                    st.info("💡 These files were skipped because they already exist in S3. Delete them first if you want to re-upload.")
 
         if upload_results['errors']:
             st.markdown(f'''

@@ -5,6 +5,7 @@
 # S3 Configuration
 S3_BUCKET_NAME = ""        # CHANGE THIS
 S3_REGION = ""             # CHANGE THIS
+S3_UPLOAD_FOLDER_PREFIX = "test_images"  # CHANGE THIS - folder prefix for uploaded images
  
 # PostgreSQL Database Configuration
 DB_CONFIG = {
