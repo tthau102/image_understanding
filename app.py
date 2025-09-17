@@ -99,19 +99,66 @@ try:
         LABEL_STUDIO_PROJECT_ID,
         LABEL_STUDIO_BASE_URL
     )
-except ImportError:
-    # Fallback to sample config
-    from config_sample import (
-        LABEL_STUDIO_API_TOKEN,
-        S3_BUCKET_NAME,
-        S3_REGION,
-        S3_UPLOAD_FOLDER_PREFIX,
-        LABEL_STUDIO_PROJECT_ID,
-        LABEL_STUDIO_BASE_URL
-    )
+    
+    # Validation and fallback for critical config values
+    if not S3_REGION or S3_REGION.strip() == "":
+        S3_REGION = "ap-southeast-1"
+        logger.warning("⚠️ S3_REGION was empty, using default: ap-southeast-1")
+    
+    if not S3_UPLOAD_FOLDER_PREFIX or S3_UPLOAD_FOLDER_PREFIX.strip() == "":
+        S3_UPLOAD_FOLDER_PREFIX = "test_images"
+        logger.warning("⚠️ S3_UPLOAD_FOLDER_PREFIX was empty, using default: test_images")
+        
+    if not S3_BUCKET_NAME or S3_BUCKET_NAME.strip() == "":
+        raise ValueError("S3_BUCKET_NAME cannot be empty. Please update config.py")
+        
+    if not LABEL_STUDIO_BASE_URL or LABEL_STUDIO_BASE_URL.strip() == "":
+        raise ValueError("LABEL_STUDIO_BASE_URL cannot be empty. Please update config.py")
 
-# Initialize S3 client
-s3_client = boto3.client('s3', region_name=S3_REGION)
+except ImportError:
+    logger.warning("⚠️ config.py not found, using config_sample.py")
+    # Fallback to sample config
+    try:
+        from config_sample import (
+            LABEL_STUDIO_API_TOKEN,
+            S3_BUCKET_NAME,
+            S3_REGION,
+            S3_UPLOAD_FOLDER_PREFIX,
+            LABEL_STUDIO_PROJECT_ID,
+            LABEL_STUDIO_BASE_URL
+        )
+        
+        # Same validation for sample config
+        if not S3_REGION or S3_REGION.strip() == "":
+            S3_REGION = "ap-southeast-1"
+            logger.warning("⚠️ S3_REGION was empty in sample config, using default: ap-southeast-1")
+        
+        if not S3_UPLOAD_FOLDER_PREFIX or S3_UPLOAD_FOLDER_PREFIX.strip() == "":
+            S3_UPLOAD_FOLDER_PREFIX = "test_images"
+            logger.warning("⚠️ S3_UPLOAD_FOLDER_PREFIX was empty in sample config, using default: test_images")
+            
+    except ImportError:
+        # Ultimate fallback if no config files exist
+        logger.error("❌ Neither config.py nor config_sample.py found. Using hardcoded defaults.")
+        LABEL_STUDIO_API_TOKEN = ""
+        S3_BUCKET_NAME = "your-bucket-name"
+        S3_REGION = "ap-southeast-1"
+        S3_UPLOAD_FOLDER_PREFIX = "test_images"
+        LABEL_STUDIO_PROJECT_ID = 1
+        LABEL_STUDIO_BASE_URL = "http://localhost:8080"
+
+# Validate final values before creating S3 client
+if not S3_REGION:
+    S3_REGION = "ap-southeast-1"
+
+# Initialize S3 client with validated region
+try:
+    s3_client = boto3.client('s3', region_name=S3_REGION)
+    logger.info(f"✅ S3 client initialized with region: {S3_REGION}")
+except Exception as e:
+    logger.error(f"❌ Failed to initialize S3 client: {str(e)}")
+    st.error(f"❌ S3 configuration error: {str(e)}")
+    st.stop()
 
 def get_s3_folders(bucket_name, prefix):
     """
