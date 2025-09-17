@@ -2,7 +2,27 @@ import streamlit as st
 import logging
 import json
 import pandas as pd
-from data_ops import get_db_connection, get_pending_review_items, generate_presigned_url, upload_image_to_s3
+
+# from data_ops import get_db_connection, get_pending_review_items, generate_presigned_url, upload_image_to_s3
+from data_ops import (
+    # DynamoDB functions (new)
+    get_pending_review_items_dynamodb,
+    get_item_by_id_dynamodb,
+    update_item_dynamodb,
+    insert_item_dynamodb,
+    delete_item_dynamodb,
+    get_items_by_compliance_dynamodb,
+    get_items_needing_review_dynamodb,
+    
+    # Legacy PostgreSQL functions (kept for backward compatibility)
+    get_db_connection,
+    get_pending_review_items,
+    
+    # S3 functions (unchanged)
+    generate_presigned_url, 
+    upload_image_to_s3
+)
+
 import requests
 import boto3
 from datetime import datetime
@@ -1127,6 +1147,83 @@ with tab4:
     </style>
     """, unsafe_allow_html=True)
 
+    # st.markdown("###  Review Pending Items")
+
+    # # Initialize session state
+    # if 'selected_image' not in st.session_state:
+    #     st.session_state.selected_image = None
+    # if 'search_term' not in st.session_state:
+    #     st.session_state.search_term = ""
+    # if 'current_page' not in st.session_state:
+    #     st.session_state.current_page = 1
+
+    # # Load pending review data
+    # try:
+    #     conn = get_db_connection()
+    #     pending_items = get_pending_review_items(conn)
+    #     conn.close()
+
+    #     # Display statistics
+    #     if pending_items:
+    #         # Calculate statistics
+    #         total_items = len(pending_items)
+    #         items_with_comments = len([item for item in pending_items if item.get('review_comment')])
+    #         compliance_pass = len([item for item in pending_items if item.get('compliance_assessment')])
+    #         compliance_fail = total_items - compliance_pass
+
+    #         # Display stats in columns
+    #         stat_col1, stat_col2, stat_col3, stat_col4 = st.columns(4)
+
+    #         with stat_col1:
+    #             st.markdown(f"""
+    #             <div class="stat-box">
+    #                 <div class="stat-number">{total_items}</div>
+    #                 <div>Total Items</div>
+    #             </div>
+    #             """, unsafe_allow_html=True)
+
+    #         with stat_col2:
+    #             st.markdown(f"""
+    #             <div class="stat-box">
+    #                 <div class="stat-number" style="color: #28a745;">{compliance_pass}</div>
+    #                 <div>Pass</div>
+    #             </div>
+    #             """, unsafe_allow_html=True)
+
+    #         with stat_col3:
+    #             st.markdown(f"""
+    #             <div class="stat-box">
+    #                 <div class="stat-number" style="color: #dc3545;">{compliance_fail}</div>
+    #                 <div>Fail</div>
+    #             </div>
+    #             """, unsafe_allow_html=True)
+
+    #         with stat_col4:
+    #             st.markdown(f"""
+    #             <div class="stat-box">
+    #                 <div class="stat-number" style="color: #6c757d;">{items_with_comments}</div>
+    #                 <div>With Comments</div>
+    #             </div>
+    #             """, unsafe_allow_html=True)
+
+    #         st.markdown("---")
+    #     else:
+    #         st.info(" No pending review items found")
+    #         st.stop()
+
+    # except Exception as e:
+    #     st.error(f"❌ Error loading pending review data: {str(e)}")
+    #     st.stop()
+    
+    # # Apply search filter
+    # search_term = st.session_state.search_term
+    # if search_term:
+    #     filtered_items = [item for item in pending_items if search_term.lower() in item['image_name'].lower()]
+    # else:
+    #     filtered_items = pending_items
+    
+    # # Get total items count for display
+    # total_items = len(filtered_items)
     st.markdown("###  Review Pending Items")
 
     # Initialize session state
@@ -1137,11 +1234,10 @@ with tab4:
     if 'current_page' not in st.session_state:
         st.session_state.current_page = 1
 
-    # Load pending review data
+    # Load pending review data from DynamoDB
     try:
-        conn = get_db_connection()
-        pending_items = get_pending_review_items(conn)
-        conn.close()
+        # Use DynamoDB instead of PostgreSQL
+        pending_items = get_pending_review_items_dynamodb()
 
         # Display statistics
         if pending_items:
@@ -1192,9 +1288,23 @@ with tab4:
             st.stop()
 
     except Exception as e:
-        st.error(f"❌ Error loading pending review data: {str(e)}")
-        st.stop()
+        st.error(f"❌ Error loading pending review data from DynamoDB: {str(e)}")
+        
+        # Fallback to PostgreSQL if DynamoDB fails
+        try:
+            st.warning("🔄 Falling back to PostgreSQL...")
+            conn = get_db_connection()
+            pending_items = get_pending_review_items(conn)
+            conn.close()
+            
+            if not pending_items:
+                st.info(" No pending review items found")
+                st.stop()
+        except Exception as pg_error:
+            st.error(f"❌ Error loading from PostgreSQL: {str(pg_error)}")
+            st.stop()
     
+    # Rest of the Tab 4 code remains the same...
     # Apply search filter
     search_term = st.session_state.search_term
     if search_term:
@@ -1204,7 +1314,11 @@ with tab4:
     
     # Get total items count for display
     total_items = len(filtered_items)
-    
+
+
+
+
+
     # 3-Column Layout
     col1, col2, col3 = st.columns([0.25, 0.35, 0.40])
     
